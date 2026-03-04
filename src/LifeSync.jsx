@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { useNavigate } from "react-router-dom";
 import { createClient } from "@supabase/supabase-js";
 
 const supabase = createClient(
@@ -227,20 +228,167 @@ const Flame = ({ streak }) => {
   );
 };
 
-export default function LifeSync({ user, onSignOut }) {
+export default function LifeSync({ user, onSignOut, isDemo = false }) {
+  const navigate = useNavigate();
   const [tab, setTab] = useState("overview");
-  const [habits, setHabits] = useState(INITIAL_HABITS);
+
+  // ── 3 random demo profiles ─────────────────────────────────────────────────
+  const DEMO_PROFILES = [
+    {
+      username: "jordan_m",
+      creditScore: 694, creditHistory: [
+        {month:"Sep",score:651},{month:"Oct",score:658},{month:"Nov",score:663},
+        {month:"Dec",score:670},{month:"Jan",score:680},{month:"Feb",score:694},
+      ],
+      monthlyIncome: 5200, monthlyExpenses: 3800, savings: 4100,
+      habits: [
+        { id:"gym",     streak:8,  weekCount:4, history:[1,1,1,0,1,1,1,1,1,0,1,1,1,1,1,0,1,1,1,1,0,1,1,1,1,1,0,1], active:true },
+        { id:"water",   streak:12, weekCount:7, history:[1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,1,1,1,1,1,1,1], active:true },
+        { id:"budget",  streak:5,  weekCount:3, history:[0,0,1,0,1,0,1,0,1,0,0,1,0,1,0,1,0,0,1,0,1,0,0,1,0,1,0,0], active:true },
+        { id:"cardpay", streak:9,  weekCount:1, history:[1,0,0,0,1,0,0,0,1,0,0,0,1,0,0,0,1,0,0,0,1,0,0,0,1,0,0,0], active:true },
+        { id:"meditate",streak:3,  weekCount:3, history:[0,0,0,1,1,0,1,0,0,1,1,0,1,0,0,1,0,1,0,0,1,0,0,1,1,0,0,1], active:true },
+      ],
+      debts: [
+        {id:"d1",name:"Credit Card",balance:1800,monthly_payment:90,apr:"21.9%"},
+        {id:"d2",name:"Student Loan",balance:22000,monthly_payment:240,apr:"5.8%"},
+      ],
+      bills: [
+        {id:"b1",name:"Rent",amount:1400,due_day:1,status:"paid"},
+        {id:"b2",name:"Car Insurance",amount:142,due_day:5,status:"upcoming"},
+        {id:"b3",name:"Phone",amount:85,due_day:14,status:"upcoming"},
+        {id:"b4",name:"Streaming",amount:47,due_day:22,status:"upcoming"},
+      ],
+      medications: [
+        {id:"m1",name:"Adderall XR 20mg",dose:"20mg",schedule:"Daily",refill_days:18},
+        {id:"m2",name:"Vitamin D3",dose:"2000 IU",schedule:"Daily",refill_days:45},
+      ],
+      supplements: [
+        {id:"s1",name:"Creatine",dose:"5g",timing:"Morning",icon:"⚡",streak:14,takenToday:false,history:[1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,1,1,1,1]},
+        {id:"s2",name:"Omega-3",dose:"1000mg",timing:"With meals",icon:"🫚",streak:6,takenToday:false,history:[0,0,0,1,1,1,1,1,0,1,1,1,1,0,1,1,1,1,1,0,1,1,0,1,1,1,0,1]},
+        {id:"s3",name:"Magnesium",dose:"400mg",timing:"Evening",icon:"🌿",streak:3,takenToday:false,history:[0,0,0,0,0,1,0,0,1,0,1,0,0,1,0,1,1,0,0,1,0,0,1,1,0,0,1,1]},
+      ],
+      moodHistory: [
+        {day:"Mon",score:7},{day:"Tue",score:6},{day:"Wed",score:8},{day:"Thu",score:7},
+        {day:"Fri",score:9},{day:"Sat",score:8},{day:"Sun",score:7},
+        {day:"Mon",score:6},{day:"Tue",score:7},{day:"Wed",score:8},{day:"Thu",score:6},
+        {day:"Fri",score:9},{day:"Sat",score:9},{day:"Sun",score:8},
+        {day:"Mon",score:7},{day:"Tue",score:8},{day:"Wed",score:7},{day:"Thu",score:8},
+        {day:"Fri",score:9},{day:"Sat",score:8},{day:"Sun",score:7},
+        {day:"Mon",score:6},{day:"Tue",score:7},{day:"Wed",score:8},{day:"Thu",score:7},
+        {day:"Fri",score:8},{day:"Sat",score:null},
+      ],
+    },
+    {
+      username: "sam_r",
+      creditScore: 731, creditHistory: [
+        {month:"Sep",score:695},{month:"Oct",score:703},{month:"Nov",score:710},
+        {month:"Dec",score:715},{month:"Jan",score:724},{month:"Feb",score:731},
+      ],
+      monthlyIncome: 7500, monthlyExpenses: 4900, savings: 11200,
+      habits: [
+        { id:"sleep",   streak:15, weekCount:6, history:[1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,1,1,1,1,1,1,1,1,1], active:true },
+        { id:"savings", streak:7,  weekCount:3, history:[0,0,1,0,1,0,0,0,1,0,1,0,0,0,1,0,1,0,0,0,1,0,1,0,0,0,1,0], active:true },
+        { id:"cardpay", streak:14, weekCount:1, history:[1,0,0,0,1,0,0,0,1,0,0,0,1,0,0,0,1,0,0,0,1,0,0,0,1,0,0,0], active:true },
+        { id:"veggies", streak:4,  weekCount:5, history:[1,0,1,1,0,1,1,1,0,1,1,0,1,1,1,0,1,1,1,1,0,1,0,1,1,1,0,1], active:true },
+        { id:"meditate",streak:10, weekCount:5, history:[1,1,0,1,1,1,0,1,1,1,1,0,1,1,1,1,0,1,1,1,1,0,1,1,1,1,0,1], active:true },
+      ],
+      debts: [
+        {id:"d1",name:"Mortgage",balance:284000,monthly_payment:1650,apr:"6.8%"},
+        {id:"d2",name:"Car Loan",balance:11400,monthly_payment:320,apr:"4.9%"},
+      ],
+      bills: [
+        {id:"b1",name:"Mortgage",amount:1650,due_day:1,status:"paid"},
+        {id:"b2",name:"Utilities",amount:195,due_day:8,status:"upcoming"},
+        {id:"b3",name:"Gym",amount:55,due_day:10,status:"paid"},
+        {id:"b4",name:"Subscriptions",amount:82,due_day:18,status:"upcoming"},
+        {id:"b5",name:"Life Insurance",amount:120,due_day:25,status:"upcoming"},
+      ],
+      medications: [],
+      supplements: [
+        {id:"s1",name:"Ashwagandha",dose:"600mg",timing:"Evening",icon:"🌿",streak:21,takenToday:false,history:[1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,1,1,1,1,1,1]},
+        {id:"s2",name:"Lion's Mane",dose:"500mg",timing:"Morning",icon:"🍄",streak:9,takenToday:false,history:[1,1,1,0,1,1,1,1,0,1,1,1,1,0,1,1,1,1,0,1,1,1,0,1,1,1,1,1]},
+        {id:"s3",name:"Vitamin C",dose:"1000mg",timing:"Morning",icon:"🍋",streak:5,takenToday:false,history:[0,0,1,1,1,0,0,1,1,1,0,0,1,1,0,1,1,1,0,0,1,0,1,1,1,0,0,1]},
+      ],
+      moodHistory: [
+        {day:"Mon",score:8},{day:"Tue",score:7},{day:"Wed",score:8},{day:"Thu",score:9},
+        {day:"Fri",score:8},{day:"Sat",score:9},{day:"Sun",score:9},
+        {day:"Mon",score:7},{day:"Tue",score:8},{day:"Wed",score:8},{day:"Thu",score:9},
+        {day:"Fri",score:9},{day:"Sat",score:10},{day:"Sun",score:8},
+        {day:"Mon",score:8},{day:"Tue",score:7},{day:"Wed",score:9},{day:"Thu",score:8},
+        {day:"Fri",score:9},{day:"Sat",score:8},{day:"Sun",score:9},
+        {day:"Mon",score:7},{day:"Tue",score:8},{day:"Wed",score:8},{day:"Thu",score:9},
+        {day:"Fri",score:9},{day:"Sat",score:8},{day:"Sun",score:null},
+      ],
+    },
+    {
+      username: "alex_k",
+      creditScore: 612, creditHistory: [
+        {month:"Sep",score:588},{month:"Oct",score:590},{month:"Nov",score:597},
+        {month:"Dec",score:601},{month:"Jan",score:607},{month:"Feb",score:612},
+      ],
+      monthlyIncome: 3800, monthlyExpenses: 3200, savings: 850,
+      habits: [
+        { id:"gym",     streak:2,  weekCount:2, history:[0,0,1,0,0,1,1,0,0,0,1,1,0,0,1,0,0,1,1,0,0,1,0,0,1,1,0,0], active:true },
+        { id:"cardpay", streak:3,  weekCount:1, history:[1,0,0,0,1,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0], active:true },
+        { id:"water",   streak:1,  weekCount:4, history:[0,1,1,0,0,1,0,1,0,0,1,0,0,1,1,0,0,0,1,1,0,0,1,0,0,0,1,1], active:true },
+        { id:"nosmoke", streak:0,  weekCount:3, history:[1,1,0,1,0,1,1,0,0,1,1,0,1,0,0,1,1,0,1,0,0,0,1,1,0,0,1,0], active:true },
+      ],
+      debts: [
+        {id:"d1",name:"Credit Card 1",balance:3200,monthly_payment:95,apr:"24.9%"},
+        {id:"d2",name:"Credit Card 2",balance:1100,monthly_payment:45,apr:"22.4%"},
+        {id:"d3",name:"Personal Loan",balance:6500,monthly_payment:180,apr:"12.5%"},
+        {id:"d4",name:"Student Loan",balance:31000,monthly_payment:195,apr:"6.1%"},
+      ],
+      bills: [
+        {id:"b1",name:"Rent",amount:950,due_day:1,status:"paid"},
+        {id:"b2",name:"Electric",amount:72,due_day:9,status:"overdue"},
+        {id:"b3",name:"Phone",amount:95,due_day:15,status:"upcoming"},
+        {id:"b4",name:"Car Insurance",amount:188,due_day:20,status:"upcoming"},
+      ],
+      medications: [
+        {id:"m1",name:"Metformin 500mg",dose:"500mg",schedule:"Twice daily",refill_days:4},
+        {id:"m2",name:"Lisinopril 10mg",dose:"10mg",schedule:"Daily",refill_days:22},
+      ],
+      supplements: [
+        {id:"s1",name:"Vitamin D3",dose:"2000 IU",timing:"Morning",icon:"💛",streak:2,takenToday:false,history:[0,0,0,1,0,0,1,0,0,0,1,0,1,0,0,0,1,0,0,1,0,0,0,0,1,0,0,1]},
+      ],
+      moodHistory: [
+        {day:"Mon",score:5},{day:"Tue",score:4},{day:"Wed",score:5},{day:"Thu",score:6},
+        {day:"Fri",score:6},{day:"Sat",score:7},{day:"Sun",score:5},
+        {day:"Mon",score:4},{day:"Tue",score:3},{day:"Wed",score:5},{day:"Thu",score:4},
+        {day:"Fri",score:6},{day:"Sat",score:6},{day:"Sun",score:5},
+        {day:"Mon",score:4},{day:"Tue",score:5},{day:"Wed",score:4},{day:"Thu",score:5},
+        {day:"Fri",score:6},{day:"Sat",score:7},{day:"Sun",score:5},
+        {day:"Mon",score:4},{day:"Tue",score:5},{day:"Wed",score:5},{day:"Thu",score:6},
+        {day:"Fri",score:5},{day:"Sat",score:null},
+      ],
+    },
+  ];
+
+  // Pick a random profile once on mount
+  const DEMO = isDemo ? DEMO_PROFILES[Math.floor(Math.random() * DEMO_PROFILES.length)] : null;
+
+  const [habits, setHabits] = useState(isDemo ? DEMO.habits : INITIAL_HABITS);
   const [showAdd, setShowAdd] = useState(false);
   const [logModal, setLogModal] = useState(null);
   const [logVal, setLogVal] = useState(1);
   const [justLogged, setJustLogged] = useState(null);
-  const [creditScore, setCreditScore] = useState(0);
-  const [monthlyIncome, setMonthlyIncome] = useState(0);
-  const [monthlyExpenses, setMonthlyExpenses] = useState(0);
-  const [savings, setSavings] = useState(0);
-  const [debts, setDebts] = useState([]);
-  const [bills, setBills] = useState([]);
-  const [medications, setMedications] = useState([]);
+  const [creditScore, setCreditScore] = useState(isDemo ? DEMO.creditScore : 0);
+  const [monthlyIncome, setMonthlyIncome] = useState(isDemo ? DEMO.monthlyIncome : 0);
+  const [monthlyExpenses, setMonthlyExpenses] = useState(isDemo ? DEMO.monthlyExpenses : 0);
+  const [savings, setSavings] = useState(isDemo ? DEMO.savings : 0);
+  const [debts, setDebts] = useState(isDemo ? [
+    {id:"d1", name:"Credit Card", balance:2400, monthly_payment:120, apr:"19.9%"},
+    {id:"d2", name:"Student Loan", balance:18500, monthly_payment:210, apr:"5.4%"},
+    {id:"d3", name:"Car Loan", balance:8200, monthly_payment:285, apr:"7.1%"},
+  ] : []);
+  const [bills, setBills] = useState(isDemo ? [
+    {id:"b1", name:"Rent", amount:1250, due_day:1, status:"paid"},
+    {id:"b2", name:"Electric", amount:87, due_day:12, status:"upcoming"},
+    {id:"b3", name:"Internet", amount:65, due_day:15, status:"upcoming"},
+    {id:"b4", name:"Health Insurance", amount:220, due_day:20, status:"upcoming"},
+  ] : []);
+  const [medications, setMedications] = useState(isDemo ? DEMO.medications : []);
   const [checkups, setCheckups] = useState([]);
   const [showEditFinances, setShowEditFinances] = useState(false);
   const [showAddDebt, setShowAddDebt] = useState(false);
@@ -252,14 +400,14 @@ export default function LifeSync({ user, onSignOut }) {
   const [newMed, setNewMed] = useState({name:"",dose:"",schedule:"Daily",refill_days:30});
   const [newCheckup, setNewCheckup] = useState({name:"",last_date:"",urgent:false});
   const [financeForm, setFinanceForm] = useState({income:"",expenses:"",savings:""});
-  const [creditHistory, setCreditHistory] = useState(CREDIT_HISTORY);
+  const [creditHistory, setCreditHistory] = useState(isDemo ? DEMO.creditHistory : CREDIT_HISTORY);
   const [creditFactors, setCreditFactors] = useState(SCORE_FACTORS);
   const [showUpdateScore, setShowUpdateScore] = useState(false);
   const [newScoreInput, setNewScoreInput] = useState("");
   const [simMode, setSimMode] = useState(false);
   const [simActions, setSimActions] = useState({ paydown: 0, newCard: false, missedPayment: false, oldAccount: false });
   // ── WELLNESS STATE ──
-  const [moodHistory, setMoodHistory] = useState(INITIAL_MOOD_HISTORY);
+  const [moodHistory, setMoodHistory] = useState(isDemo ? DEMO.moodHistory : INITIAL_MOOD_HISTORY);
   const [todayMood, setTodayMood] = useState(null);
   const [todayNote, setTodayNote] = useState("");
   const [moodLogged, setMoodLogged] = useState(false);
@@ -269,7 +417,7 @@ export default function LifeSync({ user, onSignOut }) {
   const [checkInResults, setCheckInResults] = useState(null);
   const [wellnessAiLoading, setWellnessAiLoading] = useState(false);
   const [wellnessMsg, setWellnessMsg] = useState(null);
-  const [supplements, setSupplements] = useState(INITIAL_SUPPLEMENTS);
+  const [supplements, setSupplements] = useState(isDemo ? DEMO.supplements : INITIAL_SUPPLEMENTS);
   const [showAddSupp, setShowAddSupp] = useState(false);
   const [newSupp, setNewSupp] = useState({ name:"", dose:"", timing:"Morning", icon:"💊" });
   const [suppJustLogged, setSuppJustLogged] = useState(null);
@@ -278,14 +426,14 @@ export default function LifeSync({ user, onSignOut }) {
     {role:"assistant",text:`Hi${username && username !== "You" ? " @"+username : ""}! 👋 Welcome to LifeSync. Ask me anything about your habits, finances, or health — I'm here to help you grow your Life Score.`}
   ]);
   const [aiLoading, setAiLoading] = useState(false);
-  const [username, setUsername] = useState("You");
+  const [username, setUsername] = useState(isDemo ? DEMO.username : "You");
   const chatRef = useRef(null);
   const lifeScore = calcLifeScore(habits);
   const scoreBreakdown = calcLifeScoreBreakdown(habits);
 
   // ── SUPABASE: Load user data on mount ──────────────────────────────────────
   useEffect(() => {
-    if (!user) return;
+    if (!user || isDemo) return;
     const loadData = async () => {
       // Load habits
       const { data: habitsData } = await supabase
@@ -677,6 +825,18 @@ export default function LifeSync({ user, onSignOut }) {
         {TABS.map(t=><button key={t.id} style={C.navB(tab===t.id)} onClick={()=>setTab(t.id)}><span>{t.icon}</span>{t.label}</button>)}
       </div>
 
+      {isDemo && (
+        <div style={{background:"linear-gradient(135deg,#1a1040,#0f0a2a)",borderBottom:"1px solid rgba(129,140,248,0.3)",padding:"10px 28px",display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,flexWrap:"wrap"}}>
+          <div style={{display:"flex",alignItems:"center",gap:8}}>
+            <span style={{fontSize:16}}>👁️</span>
+            <span style={{fontSize:13,color:"#c084fc",fontWeight:600}}>Demo mode — viewing @{username}'s account. Data is not real.</span>
+          </div>
+          <div style={{display:"flex",gap:8}}>
+            <button onClick={()=>navigate("/login")} style={{background:"linear-gradient(135deg,#6366f1,#818cf8)",color:"#fff",border:"none",borderRadius:8,padding:"6px 16px",cursor:"pointer",fontSize:12,fontWeight:700}}>Create Your Account →</button>
+            <button onClick={()=>navigate("/")} style={{background:"transparent",border:"1px solid #1e2240",color:"#64748b",borderRadius:8,padding:"6px 12px",cursor:"pointer",fontSize:12}}>← Back</button>
+          </div>
+        </div>
+      )}
       <div style={C.pg}>
 
         {/* ── OVERVIEW ── */}
