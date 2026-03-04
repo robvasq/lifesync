@@ -1,2 +1,2 @@
-import LifeSync from './LifeSync';
-export default function App() { return <LifeSync />; }
+import Landing from './landing';
+export default function App() { return <Landing />; }
