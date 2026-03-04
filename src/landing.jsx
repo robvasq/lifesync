@@ -1,5 +1,11 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
+import { createClient } from "@supabase/supabase-js";
+
+const supabase = createClient(
+  "https://qrtdvkzaffzhhyebnnof.supabase.co",
+  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFydGR2a3phZmZ6aGh5ZWJubm9mIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI2NTM5OTMsImV4cCI6MjA4ODIyOTk5M30.ex7LNx7Fl8GR8CpAf4vXwUlOLl3qGWxLGkxuE194pkE"
+);
 // useNavigate available for routing to /app
 
 const PARTICLE_COUNT = 40;
@@ -105,9 +111,16 @@ export default function LifeSyncLanding() {
     if (!email.trim()) { setError("Enter your email to join."); return; }
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { setError("Please enter a valid email."); return; }
     setError(""); setLoading(true);
-    await new Promise(r => setTimeout(r, 1200));
+    try {
+      const { error: dbError } = await supabase.from("waitlist").insert([{ email: email.trim().toLowerCase() }]);
+      if (dbError) {
+        if (dbError.code === "23505") { setError("You're already on the list! 🎉"); }
+        else { setError("Something went wrong — try again."); }
+        setLoading(false); return;
+      }
+      setSubmitted(true);
+    } catch(e) { setError("Connection issue — try again."); }
     setLoading(false);
-    setSubmitted(true);
   };
 
   const features = [
