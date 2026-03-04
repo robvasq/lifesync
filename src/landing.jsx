@@ -411,14 +411,19 @@ export default function LifeSyncLanding() {
 
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px,1fr))", gap: 16 }}>
           {[
-            { step: "01", title: "Track what matters", desc: "Log your habits, monitor your finances, and check in on your health. LifeSync builds your Life Score from your real daily actions.", color: "#818cf8" },
-            { step: "02", title: "Watch yourself grow", desc: "Your score updates every week. See exactly what's moving it up — and what's holding you back. Personal insights, no judgment.", color: "#facc15" },
-            { step: "03", title: "Challenge your circle", desc: "Invite friends to a league. Everyone starts at 50. Scores are public, personal data stays private. Who's really doing the work?", color: "#60a5fa" },
+            { step: "01", title: "Track what matters", desc: "Log your habits, monitor your finances, and check in on your health. LifeSync builds your Life Score from your real daily actions.", color: "#818cf8", glow: "rgba(129,140,248,0.6)" },
+            { step: "02", title: "Watch yourself grow", desc: "Your score updates every week. See exactly what's moving it up — and what's holding you back. Personal insights, no judgment.", color: "#c084fc", glow: "rgba(192,132,252,0.6)" },
+            { step: "03", title: "Challenge your circle", desc: "Invite friends to a league. Everyone starts at 50. Scores are public, personal data stays private. Who's really doing the work?", color: "#fb7185", glow: "rgba(251,113,133,0.6)" },
           ].map((s, i) => (
             <div key={i} className="feature-card" style={{ textAlign: "center", padding: "40px 28px" }}>
-              <div style={{ fontSize: 48, fontWeight: 800, color: s.color, opacity: 0.2, fontFamily: "'DM Mono', monospace", marginBottom: 16, lineHeight: 1 }}>{s.step}</div>
-              <div style={{ fontSize: 20, fontWeight: 700, marginBottom: 12 }}>{s.title}</div>
-              <div style={{ fontSize: 14, color: "#64748b", lineHeight: 1.7, fontFamily: "'DM Mono', monospace" }}>{s.desc}</div>
+              <div style={{
+                fontSize: 64, fontWeight: 800, color: s.color, fontFamily: "'DM Mono', monospace",
+                marginBottom: 16, lineHeight: 1,
+                textShadow: `0 0 20px ${s.glow}, 0 0 40px ${s.glow}, 0 0 80px ${s.glow}`,
+                filter: `drop-shadow(0 0 12px ${s.glow})`,
+              }}>{s.step}</div>
+              <div style={{ fontSize: 20, fontWeight: 700, marginBottom: 12, color: "#f1f5f9" }}>{s.title}</div>
+              <div style={{ fontSize: 14, color: "#94a3b8", lineHeight: 1.7, fontFamily: "'DM Mono', monospace" }}>{s.desc}</div>
             </div>
           ))}
         </div>
