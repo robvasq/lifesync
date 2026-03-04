@@ -85,7 +85,7 @@ export default function LifeSyncLanding() {
         if (p.y > canvas.height) p.y = 0;
         ctx.beginPath();
         ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
-        ctx.fillStyle = `rgba(74, 222, 128, ${p.a})`;
+        ctx.fillStyle = `rgba(129, 140, 248, ${p.a})`;
         ctx.fill();
         // Connect nearby particles
         for (let j = i + 1; j < particles.current.length; j++) {
@@ -95,7 +95,7 @@ export default function LifeSyncLanding() {
             ctx.beginPath();
             ctx.moveTo(p.x, p.y);
             ctx.lineTo(q.x, q.y);
-            ctx.strokeStyle = `rgba(74, 222, 128, ${0.05 * (1 - dist / 120)})`;
+            ctx.strokeStyle = `rgba(129, 140, 248, ${0.05 * (1 - dist / 120)})`;
             ctx.lineWidth = 0.5;
             ctx.stroke();
           }
@@ -124,7 +124,7 @@ export default function LifeSyncLanding() {
   };
 
   const features = [
-    { icon: "◈", title: "Life Score", desc: "One number that reflects your real situation — habits, health, finances, and wellbeing all rolled in.", color: "#4ade80" },
+    { icon: "◈", title: "Life Score", desc: "One number that reflects your real situation — habits, health, finances, and wellbeing all rolled in.", color: "#818cf8" },
     { icon: "🏆", title: "Compete With Friends", desc: "Everyone starts at 50. Who actually has their life together? The leaderboard doesn't lie.", color: "#facc15" },
     { icon: "🔒", title: "Private By Design", desc: "Your income, debt, and health data stays yours. Friends only see your score and streaks.", color: "#60a5fa" },
     { icon: "🔥", title: "Habit Streaks", desc: "Gym, sleep, budget, meditation — build streaks that actually move your score.", color: "#f97316" },
@@ -133,13 +133,13 @@ export default function LifeSyncLanding() {
   ];
 
   return (
-    <div style={{ minHeight: "100vh", background: "#04090f", color: "#e2e8f0", fontFamily: "'Syne', sans-serif", overflow: "hidden", position: "relative" }}>
+    <div style={{ minHeight: "100vh", background: "#07080f", color: "#f1f5f9", fontFamily: "'Syne', sans-serif", overflow: "hidden", position: "relative" }}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Mono:wght@400;500&display=swap');
         * { box-sizing: border-box; margin: 0; padding: 0; }
         ::-webkit-scrollbar { width: 4px; }
-        ::-webkit-scrollbar-track { background: #04090f; }
-        ::-webkit-scrollbar-thumb { background: #1a3356; border-radius: 2px; }
+        ::-webkit-scrollbar-track { background: #070d1a; }
+        ::-webkit-scrollbar-thumb { background: #2563eb; border-radius: 2px; }
 
         @keyframes fadeUp { from { opacity: 0; transform: translateY(30px); } to { opacity: 1; transform: translateY(0); } }
         @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
@@ -147,7 +147,7 @@ export default function LifeSyncLanding() {
         @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
         @keyframes shimmer { 0% { background-position: -200% center; } 100% { background-position: 200% center; } }
         @keyframes float { 0%, 100% { transform: translateY(0px); } 50% { transform: translateY(-12px); } }
-        @keyframes glow { 0%, 100% { box-shadow: 0 0 20px rgba(74,222,128,0.3); } 50% { box-shadow: 0 0 40px rgba(74,222,128,0.6), 0 0 80px rgba(74,222,128,0.2); } }
+        @keyframes glow { 0%, 100% { box-shadow: 0 0 24px rgba(129,140,248,0.4); } 50% { box-shadow: 0 0 48px rgba(129,140,248,0.7), 0 0 90px rgba(129,140,248,0.2); } }
 
         .fade-up { animation: fadeUp 0.8s ease forwards; }
         .fade-up-1 { animation: fadeUp 0.8s 0.1s ease both; }
@@ -156,24 +156,43 @@ export default function LifeSyncLanding() {
         .fade-up-4 { animation: fadeUp 0.8s 0.55s ease both; }
         .fade-up-5 { animation: fadeUp 0.8s 0.7s ease both; }
 
-        .hero-title {
-          font-size: clamp(52px, 9vw, 130px);
-          font-weight: 800;
-          line-height: 0.92;
-          letter-spacing: -3px;
+        .hero-line-1 {
+          font-size: clamp(58px, 10vw, 140px);
+          font-weight: 700;
+          line-height: 0.95;
+          letter-spacing: -4px;
+          color: #f8fafc;
         }
-
-        .shimmer-text {
-          background: linear-gradient(90deg, #4ade80 0%, #22d3ee 25%, #4ade80 50%, #facc15 75%, #4ade80 100%);
+        .hero-line-2 {
+          font-size: clamp(58px, 10vw, 140px);
+          font-weight: 800;
+          line-height: 0.95;
+          letter-spacing: -4px;
+          background: linear-gradient(90deg, #818cf8 0%, #c084fc 40%, #fb7185 70%, #fbbf24 100%);
           background-size: 200% auto;
           -webkit-background-clip: text;
           -webkit-text-fill-color: transparent;
           background-clip: text;
-          animation: shimmer 4s linear infinite;
+          animation: shimmer 5s linear infinite;
+        }
+        .hero-line-3 {
+          font-size: clamp(38px, 6vw, 90px);
+          font-weight: 600;
+          line-height: 1.05;
+          letter-spacing: -2px;
+          color: #64748b;
+        }
+        .shimmer-text {
+          background: linear-gradient(90deg, #818cf8 0%, #c084fc 40%, #fb7185 70%, #fbbf24 100%);
+          background-size: 200% auto;
+          -webkit-background-clip: text;
+          -webkit-text-fill-color: transparent;
+          background-clip: text;
+          animation: shimmer 5s linear infinite;
         }
 
         .cta-btn {
-          background: linear-gradient(135deg, #4ade80, #22d3ee);
+          background: linear-gradient(135deg, #6366f1, #c084fc);
           color: #04090f;
           border: none;
           border-radius: 14px;
@@ -192,7 +211,7 @@ export default function LifeSyncLanding() {
 
         .email-input {
           background: rgba(255,255,255,0.04);
-          border: 1px solid rgba(74,222,128,0.25);
+          border: 1px solid rgba(129,140,248,0.3);
           border-radius: 14px;
           padding: 16px 20px;
           color: #e2e8f0;
@@ -203,7 +222,7 @@ export default function LifeSyncLanding() {
           transition: border-color 0.2s, background 0.2s;
           backdrop-filter: blur(10px);
         }
-        .email-input:focus { border-color: rgba(74,222,128,0.6); background: rgba(255,255,255,0.07); }
+        .email-input:focus { border-color: rgba(129,140,248,0.7); background: rgba(255,255,255,0.07); }
         .email-input::placeholder { color: #334155; }
 
         .feature-card {
@@ -220,11 +239,11 @@ export default function LifeSyncLanding() {
           content: '';
           position: absolute;
           inset: 0;
-          background: linear-gradient(135deg, rgba(74,222,128,0.03), transparent);
+          background: linear-gradient(135deg, rgba(129,140,248,0.03), transparent);
           opacity: 0;
           transition: opacity 0.3s;
         }
-        .feature-card:hover { border-color: rgba(74,222,128,0.2); transform: translateY(-4px); }
+        .feature-card:hover { border-color: rgba(129,140,248,0.25); transform: translateY(-4px); }
         .feature-card:hover::before { opacity: 1; }
 
         .score-ring { animation: float 4s ease-in-out infinite; }
@@ -232,7 +251,7 @@ export default function LifeSyncLanding() {
         .demo-btn {
           background: transparent;
           color: #4ade80;
-          border: 1px solid rgba(74,222,128,0.4);
+          border: 1px solid rgba(129,140,248,0.4);
           border-radius: 14px;
           padding: 16px 36px;
           font-size: 15px;
@@ -243,12 +262,12 @@ export default function LifeSyncLanding() {
           letter-spacing: 0.5px;
           white-space: nowrap;
         }
-        .demo-btn:hover { background: rgba(74,222,128,0.08); transform: translateY(-2px); border-color: rgba(74,222,128,0.7); }
+        .demo-btn:hover { background: rgba(129,140,248,0.08); transform: translateY(-2px); border-color: rgba(129,140,248,0.7); }
 
         .grid-bg {
           position: absolute;
           inset: 0;
-          background-image: linear-gradient(rgba(74,222,128,0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(74,222,128,0.03) 1px, transparent 1px);
+          background-image: linear-gradient(rgba(129,140,248,0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(129,140,248,0.03) 1px, transparent 1px);
           background-size: 60px 60px;
           mask-image: radial-gradient(ellipse 80% 80% at 50% 50%, black 20%, transparent 100%);
         }
@@ -264,13 +283,13 @@ export default function LifeSyncLanding() {
           display: inline-flex;
           align-items: center;
           gap: 8px;
-          background: rgba(250,204,21,0.1);
-          border: 1px solid rgba(250,204,21,0.3);
+          background: rgba(129,140,248,0.1);
+          border: 1px solid rgba(129,140,248,0.3);
           border-radius: 99px;
           padding: 6px 16px;
           font-size: 12px;
           font-weight: 700;
-          color: #facc15;
+          color: #38bdf8;
           letter-spacing: 1px;
           text-transform: uppercase;
         }
@@ -285,8 +304,8 @@ export default function LifeSyncLanding() {
       <canvas ref={canvasRef} style={{ position: "fixed", inset: 0, pointerEvents: "none", zIndex: 0 }} />
 
       {/* Orbs */}
-      <div className="orb" style={{ width: 600, height: 600, background: "rgba(74,222,128,0.06)", top: -200, left: -100, zIndex: 0 }} />
-      <div className="orb" style={{ width: 400, height: 400, background: "rgba(96,165,250,0.05)", bottom: 200, right: -100, zIndex: 0 }} />
+      <div className="orb" style={{ width: 600, height: 600, background: "rgba(129,140,248,0.08)", top: -200, left: -100, zIndex: 0 }} />
+      <div className="orb" style={{ width: 400, height: 400, background: "rgba(129,140,248,0.07)", bottom: 200, right: -100, zIndex: 0 }} />
 
       {/* Grid */}
       <div className="grid-bg" style={{ zIndex: 0 }} />
@@ -294,15 +313,15 @@ export default function LifeSyncLanding() {
       {/* NAV */}
       <nav style={{ position: "fixed", top: 0, left: 0, right: 0, zIndex: 100, padding: "20px 40px", display: "flex", alignItems: "center", justifyContent: "space-between", backdropFilter: "blur(20px)", borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <div style={{ fontSize: 22, fontWeight: 800, background: "linear-gradient(90deg,#4ade80,#22d3ee)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>◈ LifeSync</div>
+          <div style={{ fontSize: 22, fontWeight: 800, background: "linear-gradient(90deg,#818cf8,#c084fc)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>◈ LifeSync</div>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-          <button className="demo-btn" style={{ padding: "8px 20px", fontSize: 13 }} onClick={() => navigate("/app")}>
+          <button className="demo-btn" style={{ padding: "8px 20px", fontSize: 13, color: "#c084fc", borderColor: "rgba(129,140,248,0.4)" }} onClick={() => navigate("/app")}>
             Try Demo →
           </button>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <div className="nav-dot" />
-            <span style={{ fontSize: 12, color: "#4ade80", fontFamily: "'DM Mono', monospace", fontWeight: 500 }}>Early Access Open</span>
+            <span style={{ fontSize: 12, color: "#c084fc", fontFamily: "'DM Mono', monospace", fontWeight: 500 }}>Early Access Open</span>
           </div>
         </div>
       </nav>
@@ -310,17 +329,13 @@ export default function LifeSyncLanding() {
       {/* HERO */}
       <section style={{ position: "relative", zIndex: 1, minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "120px 24px 80px", textAlign: "center" }}>
 
-        <div className="fade-up-1" style={{ marginBottom: 24 }}>
-          <div className="rank-badge">✦ Built for your 20s & 30s</div>
+        <div className="fade-up-2" style={{ marginBottom: 28, maxWidth: 900, textAlign: "center" }}>
+          <div className="hero-line-1">Your life</div>
+          <div className="hero-line-2">has a score.</div>
+          <div className="hero-line-3">Start improving it.</div>
         </div>
 
-        <h1 className="hero-title fade-up-2" style={{ marginBottom: 28, maxWidth: 900 }}>
-          Your life has a<br />
-          <span className="shimmer-text">score.</span><br />
-          Start improving it.
-        </h1>
-
-        <p className="fade-up-3" style={{ fontSize: "clamp(16px,2.5vw,22px)", color: "#64748b", maxWidth: 580, lineHeight: 1.7, marginBottom: 48, fontFamily: "'DM Mono', monospace", fontWeight: 400 }}>
+        <p className="fade-up-3" style={{ fontSize: "clamp(16px,2.5vw,22px)", color: "#94a3b8", maxWidth: 580, lineHeight: 1.7, marginBottom: 48, fontFamily: "'DM Mono', monospace", fontWeight: 400 }}>
           LifeSync turns your habits, finances, and health into one number — then helps you grow it. Track your progress, stay consistent, and challenge the people around you to do the same.
         </p>
 
@@ -347,9 +362,9 @@ export default function LifeSyncLanding() {
               <div style={{ fontSize: 12, color: "#334155", fontFamily: "'DM Mono', monospace" }}>No spam. Just your invite when we launch. 🔒</div>
             </div>
           ) : (
-            <div style={{ background: "rgba(74,222,128,0.08)", border: "1px solid rgba(74,222,128,0.3)", borderRadius: 16, padding: "24px 28px", animation: "fadeUp 0.5s ease" }}>
+            <div style={{ background: "rgba(129,140,248,0.08)", border: "1px solid rgba(129,140,248,0.3)", borderRadius: 16, padding: "24px 28px", animation: "fadeUp 0.5s ease" }}>
               <div style={{ fontSize: 32, marginBottom: 8 }}>🎉</div>
-              <div style={{ fontSize: 18, fontWeight: 800, color: "#4ade80", marginBottom: 6 }}>You're on the list!</div>
+              <div style={{ fontSize: 18, fontWeight: 800, color: "#818cf8", marginBottom: 6 }}>You're on the list!</div>
               <div style={{ fontSize: 13, color: "#64748b", fontFamily: "'DM Mono', monospace", lineHeight: 1.6 }}>We'll send your invite before anyone else. Your growth journey starts soon.</div>
             </div>
           )}
@@ -377,11 +392,11 @@ export default function LifeSyncLanding() {
         <div className="score-ring hide-mobile" style={{ position: "absolute", right: "8%", top: "50%", transform: "translateY(-50%)", opacity: 0.15 }}>
           <svg width="200" height="200">
             <circle cx="100" cy="100" r="80" fill="none" stroke="#1e293b" strokeWidth="12" />
-            <circle cx="100" cy="100" r="80" fill="none" stroke="#4ade80" strokeWidth="12"
+            <circle cx="100" cy="100" r="80" fill="none" stroke="#818cf8" strokeWidth="12"
               strokeLinecap="round" strokeDasharray={`${2 * Math.PI * 80}`}
               strokeDashoffset={`${2 * Math.PI * 80 * 0.35}`}
               transform="rotate(-90 100 100)" />
-            <text x="100" y="95" textAnchor="middle" fill="#4ade80" fontSize="42" fontWeight="800" fontFamily="Syne">65</text>
+            <text x="100" y="95" textAnchor="middle" fill="#818cf8" fontSize="42" fontWeight="800" fontFamily="Syne">65</text>
             <text x="100" y="118" textAnchor="middle" fill="#64748b" fontSize="13" fontFamily="Syne">LIFE SCORE</text>
           </svg>
         </div>
@@ -390,13 +405,13 @@ export default function LifeSyncLanding() {
       {/* HOW IT WORKS */}
       <section style={{ position: "relative", zIndex: 1, padding: "80px 24px", maxWidth: 1100, margin: "0 auto" }}>
         <div style={{ textAlign: "center", marginBottom: 64 }}>
-          <div style={{ fontSize: 12, color: "#4ade80", fontFamily: "'DM Mono', monospace", fontWeight: 500, letterSpacing: 3, textTransform: "uppercase", marginBottom: 16 }}>How it works</div>
-          <h2 style={{ fontSize: "clamp(32px,5vw,56px)", fontWeight: 800, lineHeight: 1.1, letterSpacing: -1 }}>Simple to start.<br /><span style={{ color: "#4ade80" }}>Hard to ignore.</span></h2>
+          <div style={{ fontSize: 12, color: "#c084fc", fontFamily: "'DM Mono', monospace", fontWeight: 500, letterSpacing: 3, textTransform: "uppercase", marginBottom: 16 }}>How it works</div>
+          <h2 style={{ fontSize: "clamp(32px,5vw,56px)", fontWeight: 800, lineHeight: 1.1, letterSpacing: -1 }}>Simple to start.<br /><span style={{ color: "#818cf8" }}>Hard to ignore.</span></h2>
         </div>
 
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px,1fr))", gap: 16 }}>
           {[
-            { step: "01", title: "Track what matters", desc: "Log your habits, monitor your finances, and check in on your health. LifeSync builds your Life Score from your real daily actions.", color: "#4ade80" },
+            { step: "01", title: "Track what matters", desc: "Log your habits, monitor your finances, and check in on your health. LifeSync builds your Life Score from your real daily actions.", color: "#818cf8" },
             { step: "02", title: "Watch yourself grow", desc: "Your score updates every week. See exactly what's moving it up — and what's holding you back. Personal insights, no judgment.", color: "#facc15" },
             { step: "03", title: "Challenge your circle", desc: "Invite friends to a league. Everyone starts at 50. Scores are public, personal data stays private. Who's really doing the work?", color: "#60a5fa" },
           ].map((s, i) => (
@@ -412,12 +427,12 @@ export default function LifeSyncLanding() {
       {/* FEATURES GRID */}
       <section style={{ position: "relative", zIndex: 1, padding: "80px 24px", maxWidth: 1100, margin: "0 auto" }}>
         <div style={{ textAlign: "center", marginBottom: 64 }}>
-          <div style={{ fontSize: 12, color: "#4ade80", fontFamily: "'DM Mono', monospace", fontWeight: 500, letterSpacing: 3, textTransform: "uppercase", marginBottom: 16 }}>Features</div>
-          <h2 style={{ fontSize: "clamp(32px,5vw,56px)", fontWeight: 800, lineHeight: 1.1, letterSpacing: -1 }}>Everything you need<br /><span style={{ color: "#4ade80" }}>to level up.</span></h2>
+          <div style={{ fontSize: 12, color: "#c084fc", fontFamily: "'DM Mono', monospace", fontWeight: 500, letterSpacing: 3, textTransform: "uppercase", marginBottom: 16 }}>Features</div>
+          <h2 style={{ fontSize: "clamp(32px,5vw,56px)", fontWeight: 800, lineHeight: 1.1, letterSpacing: -1 }}>Everything you need<br /><span style={{ color: "#818cf8" }}>to level up.</span></h2>
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(300px,1fr))", gap: 16 }}>
           {[
-            { icon: "◈", title: "Life Score", desc: "One number that captures your real progress — habits, finances, health, and wellbeing. Watch it grow week over week.", color: "#4ade80" },
+            { icon: "◈", title: "Life Score", desc: "One number that captures your real progress — habits, finances, health, and wellbeing. Watch it grow week over week.", color: "#818cf8" },
             { icon: "📈", title: "Personal Growth Tracking", desc: "See your trajectory over time. Are you trending up? What changed last week? Your score history tells the real story.", color: "#60a5fa" },
             { icon: "🔥", title: "Habit Streaks", desc: "Gym, sleep, budget, meditation — build streaks that actually move your score. Miss a day, feel it. Stay consistent, own it.", color: "#f97316" },
             { icon: "💰", title: "Financial Health", desc: "Track your budget, debt, credit score, and savings in one place. No more ignoring the numbers — just steady progress.", color: "#facc15" },
@@ -435,9 +450,9 @@ export default function LifeSyncLanding() {
 
       {/* STATS */}
       <section ref={statsRef} style={{ position: "relative", zIndex: 1, padding: "80px 24px", maxWidth: 1100, margin: "0 auto" }}>
-        <div style={{ background: "rgba(74,222,128,0.04)", border: "1px solid rgba(74,222,128,0.12)", borderRadius: 28, padding: "60px 40px", display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(200px,1fr))", gap: 40, textAlign: "center" }}>
+        <div style={{ background: "rgba(129,140,248,0.05)", border: "1px solid rgba(129,140,248,0.18)", borderRadius: 28, padding: "60px 40px", display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(200px,1fr))", gap: 40, textAlign: "center" }}>
           {[
-            { val: count1, suffix: "+", label: "On the waitlist", color: "#4ade80" },
+            { val: count1, suffix: "+", label: "On the waitlist", color: "#818cf8" },
             { val: count2, suffix: "%", label: "Hit their goals weekly", color: "#facc15" },
             { val: count3, suffix: " pillars", label: "Health, Finance, Habits, Wellness", color: "#60a5fa" },
           ].map((s, i) => (
@@ -474,13 +489,13 @@ export default function LifeSyncLanding() {
             </button>
           </div>
         ) : (
-          <div style={{ fontSize: 18, color: "#4ade80", fontWeight: 700 }}>🎉 You're on the list — we'll be in touch!</div>
+          <div style={{ fontSize: 18, color: "#818cf8", fontWeight: 700 }}>🎉 You're on the list — we'll be in touch!</div>
         )}
       </section>
 
       {/* FOOTER */}
       <footer style={{ position: "relative", zIndex: 1, borderTop: "1px solid rgba(255,255,255,0.05)", padding: "32px 40px", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 16 }}>
-        <div style={{ fontSize: 16, fontWeight: 800, background: "linear-gradient(90deg,#4ade80,#22d3ee)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>◈ LifeSync</div>
+        <div style={{ fontSize: 16, fontWeight: 800, background: "linear-gradient(90deg,#818cf8,#c084fc)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>◈ LifeSync</div>
         <div style={{ fontSize: 12, color: "#334155", fontFamily: "'DM Mono', monospace" }}>© 2026 LifeSync. All rights reserved.</div>
         <div style={{ fontSize: 12, color: "#334155", fontFamily: "'DM Mono', monospace" }}>Built different. 🔥</div>
       </footer>
