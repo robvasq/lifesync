@@ -1089,7 +1089,7 @@ export default function LifeSync() {
                       <div style={{fontSize:13,color:"#64748b",marginBottom:20}}>Step 2 of 3 — PHQ-2 (2 quick questions)</div>
                       {PHQ2.map((q,qi)=>(
                         <div key={qi} style={{marginBottom:18}}>
-                          <div style={{fontSize:13,fontWeight:600,marginBottom:10,lineHeight:1.5}}>{q}</div>
+                          <div style={{fontSize:13,fontWeight:600,marginBottom:10,lineHeight:1.5,color:"#f1f5f9"}}>{q}</div>
                           <div style={{display:"flex",flexDirection:"column",gap:6}}>
                             {PHQ_OPTS.map((opt,oi)=>(
                               <button key={oi} onClick={()=>{const a=[...phqAnswers];a[qi]=oi;setPhqAnswers(a);}}
@@ -1114,7 +1114,7 @@ export default function LifeSync() {
                       <div style={{fontSize:13,color:"#64748b",marginBottom:20}}>Step 3 of 3 — GAD-2 (2 quick questions)</div>
                       {GAD2.map((q,qi)=>(
                         <div key={qi} style={{marginBottom:18}}>
-                          <div style={{fontSize:13,fontWeight:600,marginBottom:10,lineHeight:1.5}}>{q}</div>
+                          <div style={{fontSize:13,fontWeight:600,marginBottom:10,lineHeight:1.5,color:"#f1f5f9"}}>{q}</div>
                           <div style={{display:"flex",flexDirection:"column",gap:6}}>
                             {PHQ_OPTS.map((opt,oi)=>(
                               <button key={oi} onClick={()=>{const a=[...gadAnswers];a[qi]=oi;setGadAnswers(a);}}

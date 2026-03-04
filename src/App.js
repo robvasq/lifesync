@@ -17,15 +17,24 @@ function AppRoutes() {
   const location = useLocation();
 
   useEffect(() => {
-    // Check existing session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setUser(session?.user ?? null);
+    // Check existing session — only enter the app if onboarding is complete
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
+      if (session?.user) {
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("onboarding_complete")
+          .eq("id", session.user.id)
+          .single();
+        if (profile?.onboarding_complete) setUser(session.user);
+        // else: session exists but onboarding not done → show Auth/Onboarding
+      }
       setLoading(false);
     });
 
-    // Listen for auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user ?? null);
+    // Listen for auth changes — only handle sign-out here.
+    // Sign-in is handled by onAuthenticated (after onboarding completes).
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_OUT') setUser(null);
     });
 
     return () => subscription.unsubscribe();
