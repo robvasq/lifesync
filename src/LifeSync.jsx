@@ -59,38 +59,27 @@ const INITIAL_HABITS = [];
 
 // ─── LIFE SCORE BREAKDOWN ─────────────────────────────────────────────────────
 // Returns { total, pillars } where pillars shows per-category detail
-function calcLifeScoreBreakdown(habits) {
+function calcLifeScoreBreakdown(habits, finances = {}) {
+  const { totalDebt = 0, income = 0, savings = 0, overdueCheckups = 0, lowRefillMeds = 0 } = finances;
+
   // ── FINANCIAL HEALTH (max 25 pts) ──
-  // Debt-to-income: $29,100 total debt on $4,200/mo income = 6.9x annual — heavy penalty
-  const totalDebt = 29100;
-  const monthlyIncome = 4200;
-  const dtiRatio = totalDebt / (monthlyIncome * 12); // ~0.58
-  const debtPenalty = dtiRatio > 0.5 ? -12 : dtiRatio > 0.3 ? -6 : 0;
-  // CC utilization 48% — high
-  const utilPenalty = -6;
-  // On-time payment streak = positive
-  const paymentBonus = 8;
-  // Savings progress ($2,340 / $5,000 = 47%)
-  const savingsBonus = 4;
-  const financeScore = Math.max(0, Math.min(25, 18 + debtPenalty + utilPenalty + paymentBonus + savingsBonus));
+  const annualIncome = income * 12;
+  const dtiRatio = annualIncome > 0 ? totalDebt / annualIncome : 0;
+  const debtPenalty = dtiRatio > 0.5 ? -12 : dtiRatio > 0.3 ? -6 : dtiRatio > 0 ? -2 : 0;
+  const savingsBonus = savings > 10000 ? 6 : savings > 3000 ? 4 : savings > 500 ? 2 : 0;
+  const paymentHabits = habits.filter(h => h.id === "cardpay" || h.id === "savings");
+  const paymentBonus = Math.min(8, paymentHabits.reduce((a, h) => a + Math.min(h.streak * 1.5, 6), 0));
+  const financeScore = Math.max(0, Math.min(25, 16 + debtPenalty + savingsBonus + paymentBonus));
 
   // ── HEALTH (max 25 pts) ──
-  // Overdue annual physical → big penalty
-  const physicalPenalty = -8;
-  // Overdue dental → penalty
-  const dentalPenalty = -5;
-  // Metformin refill almost out → minor warning
-  const medPenalty = -2;
-  // Habit health streaks (gym, etc.)
-  const healthHabits = habits.filter(h => {
-    const t = HABIT_TEMPLATES.find(x => x.id === h.id);
-    return t?.category === "health";
-  });
+  const checkupPenalty = Math.max(-12, overdueCheckups * -4);
+  const medPenalty = lowRefillMeds > 0 ? -2 : 0;
+  const healthHabits = habits.filter(h => HABIT_TEMPLATES.find(x => x.id === h.id)?.category === "health");
   const habitBonus = Math.min(10, healthHabits.reduce((acc, h) => {
     const t = HABIT_TEMPLATES.find(x => x.id === h.id);
     return acc + Math.min(h.streak * (t?.scorePerStreak || 1), 6);
   }, 0));
-  const healthScore = Math.max(0, Math.min(25, 20 + physicalPenalty + dentalPenalty + medPenalty + habitBonus));
+  const healthScore = Math.max(0, Math.min(25, 20 + checkupPenalty + medPenalty + habitBonus));
 
   // ── HABITS & DISCIPLINE (max 25 pts) ──
   const allHabitBonus = habits.reduce((acc, h) => {
@@ -101,16 +90,12 @@ function calcLifeScoreBreakdown(habits) {
   const disciplineScore = Math.max(0, Math.min(25, Math.round(allHabitBonus)));
 
   // ── WELLBEING (max 25 pts) ──
-  const wellnessHabits = habits.filter(h => {
-    const t = HABIT_TEMPLATES.find(x => x.id === h.id);
-    return t?.category === "wellness";
-  });
+  const wellnessHabits = habits.filter(h => HABIT_TEMPLATES.find(x => x.id === h.id)?.category === "wellness");
   const wellnessBonus = Math.min(10, wellnessHabits.reduce((acc, h) => {
     const t = HABIT_TEMPLATES.find(x => x.id === h.id);
     return acc + Math.min(h.streak * (t?.scorePerStreak || 1), 5);
   }, 0));
-  // Financial stress penalty (high debt = stress)
-  const stressPenalty = dtiRatio > 0.5 ? -5 : -2;
+  const stressPenalty = dtiRatio > 0.5 ? -5 : dtiRatio > 0.3 ? -2 : 0;
   const wellbeingScore = Math.max(0, Math.min(25, 14 + wellnessBonus + stressPenalty));
 
   const total = Math.min(100, financeScore + healthScore + disciplineScore + wellbeingScore);
@@ -118,46 +103,43 @@ function calcLifeScoreBreakdown(habits) {
   return {
     total: Math.round(total),
     pillars: [
-      { label: "Financial Health", score: financeScore, max: 25, color: "#60a5fa",
-        detail: debtPenalty < 0 ? "High debt load pulling score down" : "Finances on track",
+      { label: "Financial Health", score: financeScore, max: 25, color: "#818cf8",
+        detail: debtPenalty < 0 ? "Debt load pulling score down" : savings > 0 ? "Finances on track" : "Add your financial info",
         factors: [
-          { text: "Heavy debt load ($29K)", pts: debtPenalty, bad: true },
-          { text: "CC utilization 48%", pts: utilPenalty, bad: true },
-          { text: "On-time payment streak", pts: paymentBonus, bad: false },
-          { text: "Emergency fund progress", pts: savingsBonus, bad: false },
+          { text: totalDebt > 0 ? `Debt load ($${totalDebt.toLocaleString()})` : "No debt", pts: debtPenalty, bad: debtPenalty < 0 },
+          { text: "Savings cushion", pts: savingsBonus, bad: false },
+          { text: "Payment habits", pts: Math.round(paymentBonus), bad: false },
         ]
       },
-      { label: "Health", score: healthScore, max: 25, color: "#f87171",
-        detail: "2 overdue checkups are your biggest drag",
+      { label: "Health", score: healthScore, max: 25, color: "#fb7185",
+        detail: overdueCheckups > 0 ? `${overdueCheckups} overdue checkup${overdueCheckups>1?"s":""}` : "Health tracking looks good",
         factors: [
-          { text: "Annual physical overdue", pts: physicalPenalty, bad: true },
-          { text: "Dental cleaning overdue", pts: dentalPenalty, bad: true },
-          { text: "Metformin refill low", pts: medPenalty, bad: true },
-          { text: "Gym & health habits", pts: habitBonus, bad: false },
+          { text: overdueCheckups > 0 ? `${overdueCheckups} overdue checkup${overdueCheckups>1?"s":""}` : "No overdue checkups", pts: checkupPenalty, bad: overdueCheckups > 0 },
+          { text: lowRefillMeds > 0 ? "Medication refill due soon" : "Medications on track", pts: medPenalty, bad: lowRefillMeds > 0 },
+          { text: "Health habits", pts: habitBonus, bad: false },
         ]
       },
-      { label: "Habits & Discipline", score: disciplineScore, max: 25, color: "#facc15",
-        detail: disciplineScore >= 15 ? "Strong consistency" : "Build more streaks",
+      { label: "Habits & Discipline", score: disciplineScore, max: 25, color: "#fbbf24",
+        detail: disciplineScore >= 15 ? "Strong consistency" : disciplineScore > 0 ? "Build more streaks" : "Start tracking habits",
         factors: habits.slice(0,4).map(h => {
           const t = HABIT_TEMPLATES.find(x => x.id === h.id);
           const pts = Math.min(h.streak * (t?.scorePerStreak||1) * 0.4, 4);
-          return { text: `${t?.label} (${h.streak} streak)`, pts: Math.round(pts), bad: false };
+          return { text: `${t?.label||h.id} (${h.streak} streak)`, pts: Math.round(pts), bad: false };
         })
       },
-      { label: "Wellbeing", score: wellbeingScore, max: 25, color: "#a78bfa",
+      { label: "Wellbeing", score: wellbeingScore, max: 25, color: "#c084fc",
         detail: stressPenalty < -2 ? "Financial stress impacting wellbeing" : "Wellbeing looks good",
         factors: [
-          { text: "Financial stress (high debt)", pts: stressPenalty, bad: true },
+          { text: stressPenalty < 0 ? "Financial stress" : "Low financial stress", pts: stressPenalty, bad: stressPenalty < 0 },
           { text: "Wellness habits", pts: wellnessBonus, bad: false },
-          { text: "Mental health practices", pts: 4, bad: false },
         ]
       },
     ]
   };
 }
 
-function calcLifeScore(habits) {
-  return calcLifeScoreBreakdown(habits).total;
+function calcLifeScore(habits, finances) {
+  return calcLifeScoreBreakdown(habits, finances).total;
 }
 
 const ScoreRing = ({ score, size=120, doAnimate=true }) => {
@@ -365,8 +347,8 @@ export default function LifeSync({ user, onSignOut, isDemo = false }) {
     },
   ];
 
-  // Pick a random profile once on mount
-  const DEMO = isDemo ? DEMO_PROFILES[Math.floor(Math.random() * DEMO_PROFILES.length)] : null;
+  // Pick a random profile once on mount — always an object, never null
+  const DEMO = DEMO_PROFILES[Math.floor(Math.random() * DEMO_PROFILES.length)];
 
   const [habits, setHabits] = useState(isDemo ? DEMO.habits : INITIAL_HABITS);
   const [showAdd, setShowAdd] = useState(false);
@@ -391,6 +373,7 @@ export default function LifeSync({ user, onSignOut, isDemo = false }) {
   const [medications, setMedications] = useState(isDemo ? DEMO.medications : []);
   const [checkups, setCheckups] = useState([]);
   const [showEditFinances, setShowEditFinances] = useState(false);
+  const openEditFinances = () => { setFinanceForm({income: monthlyIncome||"", expenses: monthlyExpenses||"", savings: savings||""}); setShowEditFinances(true); };
   const [showAddDebt, setShowAddDebt] = useState(false);
   const [showAddBill, setShowAddBill] = useState(false);
   const [showAddMed, setShowAddMed] = useState(false);
@@ -428,8 +411,15 @@ export default function LifeSync({ user, onSignOut, isDemo = false }) {
   const [aiLoading, setAiLoading] = useState(false);
   const [username, setUsername] = useState(isDemo ? DEMO.username : "You");
   const chatRef = useRef(null);
-  const lifeScore = calcLifeScore(habits);
-  const scoreBreakdown = calcLifeScoreBreakdown(habits);
+  const financeData = {
+    totalDebt: debts.reduce((a, d) => a + (d.balance||0), 0),
+    income: monthlyIncome,
+    savings: savings,
+    overdueCheckups: checkups.filter(ch => ch.urgent).length,
+    lowRefillMeds: medications.filter(m => (m.refill_days||30) <= 7).length,
+  };
+  const lifeScore = calcLifeScore(habits, financeData);
+  const scoreBreakdown = calcLifeScoreBreakdown(habits, financeData);
 
   // ── SUPABASE: Load user data on mount ──────────────────────────────────────
   useEffect(() => {
@@ -469,7 +459,7 @@ export default function LifeSync({ user, onSignOut, isDemo = false }) {
 
       // Load finances
       const { data: finData } = await supabase
-        .from("finances").select("*").eq("user_id", user.id).single();
+        .from("finances").select("*").eq("user_id", user.id).maybeSingle();
       if (finData) {
         if (finData.credit_score) setCreditScore(finData.credit_score);
         if (finData.monthly_income) setMonthlyIncome(finData.monthly_income);
@@ -505,7 +495,7 @@ export default function LifeSync({ user, onSignOut, isDemo = false }) {
         .from("profiles")
         .select("username")
         .eq("id", user.id)
-        .single();
+        .maybeSingle();
       if (profile) setUsername(profile.username);
     };
     loadData();
@@ -529,7 +519,7 @@ export default function LifeSync({ user, onSignOut, isDemo = false }) {
       .select("id")
       .eq("user_id", user.id)
       .eq("name", habitId)
-      .single();
+      .maybeSingle();
     if (existing) {
       await supabase.from("habits").update({ streak, last_completed: new Date().toISOString().split("T")[0] }).eq("id", existing.id);
     } else {
@@ -614,7 +604,7 @@ export default function LifeSync({ user, onSignOut, isDemo = false }) {
     const weekStart = new Date();
     weekStart.setDate(weekStart.getDate() - weekStart.getDay());
     const weekStr = weekStart.toISOString().split("T")[0];
-    const { data: existing } = await supabase.from("score_history").select("id").eq("user_id", user.id).eq("week_start", weekStr).single();
+    const { data: existing } = await supabase.from("score_history").select("id").eq("user_id", user.id).eq("week_start", weekStr).maybeSingle();
     if (!existing) {
       await supabase.from("score_history").insert([{ user_id: user.id, score, week_start: weekStr }]);
     }
@@ -637,7 +627,7 @@ export default function LifeSync({ user, onSignOut, isDemo = false }) {
       const newCount = Math.min(h.weekCount + count, t.target * 2);
       const done = newCount >= t.target;
       const newStreak = done ? h.streak+1 : h.streak;
-      saveHabit(id, newStreak);
+      saveHabit(id, newStreak); // intentionally not awaited — fire and forget
       return { ...h, weekCount: newCount, streak: newStreak, history: [...h.history, done?1:0].slice(-28) };
     }));
     setJustLogged(id);
@@ -1007,18 +997,23 @@ export default function LifeSync({ user, onSignOut, isDemo = false }) {
                 {[["Housing",1250,"#60a5fa"],["Food & Groceries",480,"#4ade80"],["Transportation",410,"#facc15"],["Health & Insurance",320,"#f87171"],["Entertainment",180,"#a78bfa"],["Other",460,"#94a3b8"]].map(([cat,amt,color])=>(
                   <div key={cat} style={{marginBottom:14}}>
                     <div style={{display:"flex",justifyContent:"space-between",marginBottom:4,fontSize:13}}><span style={{color:"#94a3b8"}}>{cat}</span><span style={{fontWeight:700}}>${amt}</span></div>
-                    <Bar value={amt} max={4200} color={color} h={6}/>
+                    <Bar value={amt} max={Math.max(monthlyIncome,1)} color={color} h={6}/>
                   </div>
                 ))}
               </div>
               <div style={C.card}>
                 <div style={C.cTitle}>Debt Overview</div>
-                {[["Credit Card",2400,120,"19.9%",5000],["Student Loan",18500,210,"5.4%",25000],["Car Loan",8200,285,"7.1%",15000]].map(([name,bal,pay,rate,max])=>(
-                  <div key={name} style={{marginBottom:16}}>
-                    <div style={{display:"flex",justifyContent:"space-between",marginBottom:4}}><div><div style={{fontSize:14,fontWeight:600}}>{name}</div><div style={{fontSize:11,color:"#64748b"}}>{rate} APR · ${pay}/mo</div></div><div style={{fontSize:16,fontWeight:800,color:"#f87171"}}>${bal.toLocaleString()}</div></div>
-                    <Bar value={bal} max={max} color="#f87171" h={5}/>
+                {debts.map(d=>(
+                  <div key={d.id} style={{marginBottom:16}}>
+                    <div style={{display:"flex",justifyContent:"space-between",marginBottom:4,alignItems:"flex-start"}}>
+                      <div><div style={{fontSize:14,fontWeight:600}}>{d.name}</div><div style={{fontSize:11,color:"#64748b"}}>{d.apr||"—"} APR · ${(d.monthly_payment||0).toLocaleString()}/mo</div></div>
+                      <div style={{display:"flex",alignItems:"center",gap:8}}><div style={{fontSize:16,fontWeight:800,color:"#fb7185"}}>${(d.balance||0).toLocaleString()}</div><button onClick={()=>removeDebt(d.id)} style={{background:"none",border:"none",color:"#334155",cursor:"pointer",fontSize:16}}>×</button></div>
+                    </div>
+                    <Bar value={d.balance||0} max={Math.max((d.balance||0)*1.5,1000)} color="#fb7185" h={5}/>
                   </div>
                 ))}
+                {debts.length===0&&<div style={{textAlign:"center",padding:"20px 0",color:"#475569",fontSize:13}}>No debts added yet.</div>}
+                <button onClick={()=>setShowAddDebt(true)} style={{marginTop:8,background:"transparent",border:"1px solid #1e2240",color:"#818cf8",borderRadius:8,padding:"8px 14px",cursor:"pointer",fontSize:12,fontWeight:700,width:"100%"}}>+ Add Debt</button>
               </div>
               <div style={C.card}>
                 <div style={C.cTitle}>Upcoming Bills</div>
