@@ -1,4 +1,6 @@
 import { useState, useEffect, useRef } from "react";
+import { useNavigate } from "react-router-dom";
+// useNavigate available for routing to /app
 
 const PARTICLE_COUNT = 40;
 
@@ -19,6 +21,7 @@ function useCountUp(target, duration = 2000, start = false) {
 }
 
 export default function LifeSyncLanding() {
+  const navigate = useNavigate();
   const [email, setEmail] = useState("");
   const [submitted, setSubmitted] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -213,7 +216,21 @@ export default function LifeSyncLanding() {
 
         .score-ring { animation: float 4s ease-in-out infinite; }
 
-        .nav-dot { width: 6px; height: 6px; border-radius: 50%; background: #4ade80; animation: pulse 2s ease-in-out infinite; }
+        .demo-btn {
+          background: transparent;
+          color: #4ade80;
+          border: 1px solid rgba(74,222,128,0.4);
+          border-radius: 14px;
+          padding: 16px 36px;
+          font-size: 15px;
+          font-weight: 700;
+          font-family: 'Syne', sans-serif;
+          cursor: pointer;
+          transition: all 0.2s;
+          letter-spacing: 0.5px;
+          white-space: nowrap;
+        }
+        .demo-btn:hover { background: rgba(74,222,128,0.08); transform: translateY(-2px); border-color: rgba(74,222,128,0.7); }
 
         .grid-bg {
           position: absolute;
@@ -266,9 +283,14 @@ export default function LifeSyncLanding() {
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <div style={{ fontSize: 22, fontWeight: 800, background: "linear-gradient(90deg,#4ade80,#22d3ee)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>◈ LifeSync</div>
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <div className="nav-dot" />
-          <span style={{ fontSize: 12, color: "#4ade80", fontFamily: "'DM Mono', monospace", fontWeight: 500 }}>Early Access Open</span>
+        <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+          <button className="demo-btn" style={{ padding: "8px 20px", fontSize: 13 }} onClick={() => navigate("/app")}>
+            Try Demo →
+          </button>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <div className="nav-dot" />
+            <span style={{ fontSize: 12, color: "#4ade80", fontFamily: "'DM Mono', monospace", fontWeight: 500 }}>Early Access Open</span>
+          </div>
         </div>
       </nav>
 
@@ -320,15 +342,21 @@ export default function LifeSyncLanding() {
         </div>
 
         {/* Social proof */}
-        <div className="fade-up-5" style={{ display: "flex", alignItems: "center", gap: 6 }}>
-          <div style={{ display: "flex" }}>
-            {["#1d4ed8","#7c3aed","#059669","#dc2626"].map((c, i) => (
-              <div key={i} style={{ width: 28, height: 28, borderRadius: "50%", background: `linear-gradient(135deg,${c},${c}99)`, border: "2px solid #04090f", marginLeft: i > 0 ? -8 : 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 800 }}>
-                {["AJ","MK","SR","DW"][i]}
-              </div>
-            ))}
+        <div className="fade-up-5" style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", justifyContent: "center" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <div style={{ display: "flex" }}>
+              {["#1d4ed8","#7c3aed","#059669","#dc2626"].map((c, i) => (
+                <div key={i} style={{ width: 28, height: 28, borderRadius: "50%", background: `linear-gradient(135deg,${c},${c}99)`, border: "2px solid #04090f", marginLeft: i > 0 ? -8 : 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 800 }}>
+                  {["AJ","MK","SR","DW"][i]}
+                </div>
+              ))}
+            </div>
+            <span style={{ fontSize: 13, color: "#475569", fontFamily: "'DM Mono', monospace" }}>+2,800 people already waiting</span>
           </div>
-          <span style={{ fontSize: 13, color: "#475569", fontFamily: "'DM Mono', monospace" }}>+2,800 people already waiting</span>
+          <span style={{ color: "#1e293b" }}>·</span>
+          <button className="demo-btn" style={{ padding: "8px 20px", fontSize: 13 }} onClick={() => navigate("/app")}>
+            👀 Explore the app
+          </button>
         </div>
 
         {/* Floating score preview */}
