@@ -132,8 +132,8 @@ const STYLES = `
   .auth-btn:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
 
   .option-card {
-    background: rgba(255,255,255,0.02);
-    border: 1px solid #1e2240;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid #2d3260;
     border-radius: 14px;
     padding: 16px 20px;
     cursor: pointer;
@@ -141,16 +141,16 @@ const STYLES = `
     font-family: 'Syne', sans-serif;
     font-size: 15px;
     font-weight: 600;
-    color: #f1f5f9;
+    color: #cbd5e1;
     text-align: left;
     display: flex;
     align-items: center;
     gap: 12px;
   }
-  .option-card:hover { border-color: #818cf8; color: #f1f5f9; background: rgba(129,140,248,0.06); }
+  .option-card:hover { border-color: #818cf8; color: #f1f5f9; background: rgba(129,140,248,0.08); }
   .option-card.selected {
     border-color: #818cf8;
-    background: rgba(129,140,248,0.12);
+    background: rgba(129,140,248,0.15);
     color: #f1f5f9;
     box-shadow: 0 0 0 1px #818cf8;
   }
@@ -381,12 +381,19 @@ function Onboarding({ user, onComplete }) {
     if (answers[step.key] === undefined) return;
     if (isLast) {
       setSaving(true);
-      await supabase.from("profiles").update({
-        ...answers,
-        onboarding_complete: true,
-      }).eq("id", user.id);
-      setSaving(false);
-      onComplete();
+      try {
+        if (user?.id) {
+          await supabase.from("profiles").update({
+            ...answers,
+            onboarding_complete: true,
+          }).eq("id", user.id);
+        }
+      } catch(e) {
+        console.error("Profile save error:", e);
+      } finally {
+        setSaving(false);
+        onComplete();
+      }
     } else {
       setKey(k => k + 1);
       setStepIndex(i => i + 1);
@@ -428,7 +435,7 @@ function Onboarding({ user, onComplete }) {
       {/* Question card */}
       <div key={key} className="step-animate" style={{ background: "#0e1120", border: "1px solid #1e2240", borderRadius: 24, padding: "40px 36px" }}>
         <div style={{ fontSize: 48, marginBottom: 16, textAlign: "center" }}>{step.emoji}</div>
-        <h2 style={{ fontSize: 26, fontWeight: 800, letterSpacing: -0.5, marginBottom: 8, textAlign: "center", lineHeight: 1.2, color: "#f1f5f9" }}>{step.question}</h2>
+        <h2 style={{ fontSize: 26, fontWeight: 800, letterSpacing: -0.5, marginBottom: 8, textAlign: "center", lineHeight: 1.2 }}>{step.question}</h2>
         <p style={{ fontSize: 14, color: "#64748b", fontFamily: "'DM Mono', monospace", textAlign: "center", marginBottom: 28, lineHeight: 1.6 }}>{step.subtitle}</p>
 
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
@@ -489,8 +496,16 @@ export default function Auth({ onAuthenticated }) {
     }
   };
 
-  const handleOnboardingComplete = () => {
-    onAuthenticated(user);
+  const handleOnboardingComplete = async () => {
+    // Re-fetch session to make sure we have a valid user
+    const { data: { session } } = await supabase.auth.getSession();
+    const authUser = session?.user || user;
+    if (authUser) {
+      onAuthenticated(authUser);
+    } else {
+      // Fallback: go back to sign in
+      setMode("signin");
+    }
   };
 
   return (
