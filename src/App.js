@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { BrowserRouter, Routes, Route, useNavigate, useLocation } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, useNavigate } from 'react-router-dom';
 import { createClient } from '@supabase/supabase-js';
 import Landing from './landing';
 import LifeSync from './LifeSync';
@@ -10,31 +10,26 @@ const supabase = createClient(
   "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFydGR2a3phZmZ6aGh5ZWJubm9mIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI2NTM5OTMsImV4cCI6MjA4ODIyOTk5M30.ex7LNx7Fl8GR8CpAf4vXwUlOLl3qGWxLGkxuE194pkE"
 );
 
+const Spinner = () => (
+  <div style={{ minHeight:"100vh", background:"#07080f", display:"flex", alignItems:"center", justifyContent:"center" }}>
+    <span style={{ display:"inline-block", width:36, height:36, border:"3px solid #818cf8", borderTopColor:"transparent", borderRadius:"50%", animation:"spin 0.7s linear infinite" }} />
+    <style>{`@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}`}</style>
+  </div>
+);
+
 function AppRoutes() {
-  const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [user, setUser] = useState(undefined);
   const navigate = useNavigate();
-  const location = useLocation();
 
   useEffect(() => {
-    // Check existing session — only enter the app if onboarding is complete
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
-      if (session?.user) {
-        const { data: profile } = await supabase
-          .from("profiles")
-          .select("onboarding_complete")
-          .eq("id", session.user.id)
-          .single();
-        if (profile?.onboarding_complete) setUser(session.user);
-        // else: session exists but onboarding not done → show Auth/Onboarding
-      }
-      setLoading(false);
+    // Get initial session first
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setUser(session?.user ?? null);
     });
 
-    // Listen for auth changes — only handle sign-out here.
-    // Sign-in is handled by onAuthenticated (after onboarding completes).
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      if (event === 'SIGNED_OUT') setUser(null);
+    // Then listen for changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null);
     });
 
     return () => subscription.unsubscribe();
@@ -43,36 +38,26 @@ function AppRoutes() {
   const handleSignOut = async () => {
     await supabase.auth.signOut();
     setUser(null);
-    navigate('/');
+    navigate("/");
   };
 
-  if (loading) {
-    return (
-      <div style={{
-        minHeight: '100vh', background: '#07080f', display: 'flex',
-        alignItems: 'center', justifyContent: 'center',
-      }}>
-        <span style={{
-          display: 'inline-block', width: 36, height: 36,
-          border: '3px solid #818cf8', borderTopColor: 'transparent',
-          borderRadius: '50%', animation: 'spin 0.7s linear infinite',
-        }} />
-        <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
-      </div>
-    );
-  }
+  const handleAuthenticated = (authUser) => {
+    setUser(authUser);
+    navigate("/app");
+  };
+
+  if (user === undefined) return <Spinner />;
 
   return (
     <Routes>
       <Route path="/" element={<Landing />} />
       <Route path="/login" element={
-        user ? <LifeSync user={user} onSignOut={handleSignOut} /> : <Auth onAuthenticated={(u) => { setUser(u); navigate('/app'); }} />
+        user ? <LifeSync user={user} onSignOut={handleSignOut} /> : <Auth onAuthenticated={handleAuthenticated} />
       } />
       <Route path="/app" element={
-        user
-          ? <LifeSync user={user} onSignOut={handleSignOut} />
-          : <Auth onAuthenticated={(u) => { setUser(u); navigate('/app'); }} />
+        user ? <LifeSync user={user} onSignOut={handleSignOut} /> : <Auth onAuthenticated={handleAuthenticated} />
       } />
+      <Route path="*" element={<Landing />} />
     </Routes>
   );
 }

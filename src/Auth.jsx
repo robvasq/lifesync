@@ -383,17 +383,17 @@ function Onboarding({ user, onComplete }) {
       setSaving(true);
       try {
         if (user?.id) {
-          await supabase.from("profiles").update({
+          const { error } = await supabase.from("profiles").update({
             ...answers,
             onboarding_complete: true,
           }).eq("id", user.id);
+          if (error) console.error("Supabase update error:", error);
         }
       } catch(e) {
         console.error("Profile save error:", e);
-      } finally {
-        setSaving(false);
-        onComplete();
       }
+      setSaving(false);
+      onComplete();
     } else {
       setKey(k => k + 1);
       setStepIndex(i => i + 1);
@@ -497,13 +497,16 @@ export default function Auth({ onAuthenticated }) {
   };
 
   const handleOnboardingComplete = async () => {
-    // Re-fetch session to make sure we have a valid user
-    const { data: { session } } = await supabase.auth.getSession();
-    const authUser = session?.user || user;
-    if (authUser) {
-      onAuthenticated(authUser);
-    } else {
-      // Fallback: go back to sign in
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const authUser = session?.user ?? user;
+      if (authUser) {
+        onAuthenticated(authUser);
+      } else {
+        setMode("signin");
+      }
+    } catch(e) {
+      console.error("handleOnboardingComplete error:", e);
       setMode("signin");
     }
   };
