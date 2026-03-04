@@ -311,16 +311,17 @@ export default function LifeSyncLanding() {
       <section style={{ position: "relative", zIndex: 1, minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "120px 24px 80px", textAlign: "center" }}>
 
         <div className="fade-up-1" style={{ marginBottom: 24 }}>
-          <div className="rank-badge">🏆 Season 1 starts soon</div>
+          <div className="rank-badge">✦ Built for your 20s & 30s</div>
         </div>
 
         <h1 className="hero-title fade-up-2" style={{ marginBottom: 28, maxWidth: 900 }}>
           Your life has a<br />
-          <span className="shimmer-text">score.</span>
+          <span className="shimmer-text">score.</span><br />
+          Start improving it.
         </h1>
 
         <p className="fade-up-3" style={{ fontSize: "clamp(16px,2.5vw,22px)", color: "#64748b", maxWidth: 580, lineHeight: 1.7, marginBottom: 48, fontFamily: "'DM Mono', monospace", fontWeight: 400 }}>
-          Track habits, health, and finances — then compete with friends to see who's actually winning at life. No filters. Just receipts.
+          LifeSync turns your habits, finances, and health into one number — then helps you grow it. Track your progress, stay consistent, and challenge the people around you to do the same.
         </p>
 
         {/* Email capture */}
@@ -349,7 +350,7 @@ export default function LifeSyncLanding() {
             <div style={{ background: "rgba(74,222,128,0.08)", border: "1px solid rgba(74,222,128,0.3)", borderRadius: 16, padding: "24px 28px", animation: "fadeUp 0.5s ease" }}>
               <div style={{ fontSize: 32, marginBottom: 8 }}>🎉</div>
               <div style={{ fontSize: 18, fontWeight: 800, color: "#4ade80", marginBottom: 6 }}>You're on the list!</div>
-              <div style={{ fontSize: 13, color: "#64748b", fontFamily: "'DM Mono', monospace", lineHeight: 1.6 }}>We'll hit you with an invite before anyone else. Get ready to compete.</div>
+              <div style={{ fontSize: 13, color: "#64748b", fontFamily: "'DM Mono', monospace", lineHeight: 1.6 }}>We'll send your invite before anyone else. Your growth journey starts soon.</div>
             </div>
           )}
         </div>
@@ -390,14 +391,14 @@ export default function LifeSyncLanding() {
       <section style={{ position: "relative", zIndex: 1, padding: "80px 24px", maxWidth: 1100, margin: "0 auto" }}>
         <div style={{ textAlign: "center", marginBottom: 64 }}>
           <div style={{ fontSize: 12, color: "#4ade80", fontFamily: "'DM Mono', monospace", fontWeight: 500, letterSpacing: 3, textTransform: "uppercase", marginBottom: 16 }}>How it works</div>
-          <h2 style={{ fontSize: "clamp(32px,5vw,56px)", fontWeight: 800, lineHeight: 1.1, letterSpacing: -1 }}>Simple concept.<br /><span style={{ color: "#4ade80" }}>Real accountability.</span></h2>
+          <h2 style={{ fontSize: "clamp(32px,5vw,56px)", fontWeight: 800, lineHeight: 1.1, letterSpacing: -1 }}>Simple to start.<br /><span style={{ color: "#4ade80" }}>Hard to ignore.</span></h2>
         </div>
 
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px,1fr))", gap: 16 }}>
           {[
-            { step: "01", title: "Build your profile", desc: "Log your habits, track your finances, and monitor your health. LifeSync builds a score from your real life.", color: "#4ade80" },
-            { step: "02", title: "Create a league", desc: "Invite your friends with a code or link. Everyone starts at 50 — no past advantages, pure progress.", color: "#facc15" },
-            { step: "03", title: "Compete for 4 months", desc: "Weekly score updates, head-to-head matchups, and a league chat keep the competition alive. Highest score wins.", color: "#60a5fa" },
+            { step: "01", title: "Track what matters", desc: "Log your habits, monitor your finances, and check in on your health. LifeSync builds your Life Score from your real daily actions.", color: "#4ade80" },
+            { step: "02", title: "Watch yourself grow", desc: "Your score updates every week. See exactly what's moving it up — and what's holding you back. Personal insights, no judgment.", color: "#facc15" },
+            { step: "03", title: "Challenge your circle", desc: "Invite friends to a league. Everyone starts at 50. Scores are public, personal data stays private. Who's really doing the work?", color: "#60a5fa" },
           ].map((s, i) => (
             <div key={i} className="feature-card" style={{ textAlign: "center", padding: "40px 28px" }}>
               <div style={{ fontSize: 48, fontWeight: 800, color: s.color, opacity: 0.2, fontFamily: "'DM Mono', monospace", marginBottom: 16, lineHeight: 1 }}>{s.step}</div>
@@ -412,10 +413,17 @@ export default function LifeSyncLanding() {
       <section style={{ position: "relative", zIndex: 1, padding: "80px 24px", maxWidth: 1100, margin: "0 auto" }}>
         <div style={{ textAlign: "center", marginBottom: 64 }}>
           <div style={{ fontSize: 12, color: "#4ade80", fontFamily: "'DM Mono', monospace", fontWeight: 500, letterSpacing: 3, textTransform: "uppercase", marginBottom: 16 }}>Features</div>
-          <h2 style={{ fontSize: "clamp(32px,5vw,56px)", fontWeight: 800, lineHeight: 1.1, letterSpacing: -1 }}>Everything that<br /><span style={{ color: "#4ade80" }}>actually matters.</span></h2>
+          <h2 style={{ fontSize: "clamp(32px,5vw,56px)", fontWeight: 800, lineHeight: 1.1, letterSpacing: -1 }}>Everything you need<br /><span style={{ color: "#4ade80" }}>to level up.</span></h2>
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(300px,1fr))", gap: 16 }}>
-          {features.map((f, i) => (
+          {[
+            { icon: "◈", title: "Life Score", desc: "One number that captures your real progress — habits, finances, health, and wellbeing. Watch it grow week over week.", color: "#4ade80" },
+            { icon: "📈", title: "Personal Growth Tracking", desc: "See your trajectory over time. Are you trending up? What changed last week? Your score history tells the real story.", color: "#60a5fa" },
+            { icon: "🔥", title: "Habit Streaks", desc: "Gym, sleep, budget, meditation — build streaks that actually move your score. Miss a day, feel it. Stay consistent, own it.", color: "#f97316" },
+            { icon: "💰", title: "Financial Health", desc: "Track your budget, debt, credit score, and savings in one place. No more ignoring the numbers — just steady progress.", color: "#facc15" },
+            { icon: "🗓️", title: "Scheduling & Reminders", desc: "Never miss a bill, a refill, or a habit. Smart reminders keep your streak alive and your score moving without you having to think about it.", color: "#a78bfa" },
+            { icon: "🏆", title: "Friend Leagues", desc: "Challenge your friends to a 4-month season. Everyone starts equal. Your score is public, your personal data never is.", color: "#22d3ee" },
+          ].map((f, i) => (
             <div key={i} className="feature-card">
               <div style={{ fontSize: 28, marginBottom: 14 }}>{f.icon}</div>
               <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 10, color: f.color }}>{f.title}</div>
@@ -430,8 +438,8 @@ export default function LifeSyncLanding() {
         <div style={{ background: "rgba(74,222,128,0.04)", border: "1px solid rgba(74,222,128,0.12)", borderRadius: 28, padding: "60px 40px", display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(200px,1fr))", gap: 40, textAlign: "center" }}>
           {[
             { val: count1, suffix: "+", label: "On the waitlist", color: "#4ade80" },
-            { val: count2, suffix: "%", label: "Come back daily", color: "#facc15" },
-            { val: count3, suffix: " months", label: "Season length", color: "#60a5fa" },
+            { val: count2, suffix: "%", label: "Hit their goals weekly", color: "#facc15" },
+            { val: count3, suffix: " pillars", label: "Health, Finance, Habits, Wellness", color: "#60a5fa" },
           ].map((s, i) => (
             <div key={i}>
               <div style={{ fontSize: "clamp(40px,6vw,72px)", fontWeight: 800, color: s.color, letterSpacing: -2, lineHeight: 1, fontFamily: "'DM Mono', monospace" }}>{s.val}{s.suffix}</div>
@@ -444,11 +452,11 @@ export default function LifeSyncLanding() {
       {/* FINAL CTA */}
       <section style={{ position: "relative", zIndex: 1, padding: "80px 24px 120px", textAlign: "center" }}>
         <h2 style={{ fontSize: "clamp(36px,6vw,80px)", fontWeight: 800, lineHeight: 1, letterSpacing: -2, marginBottom: 24 }}>
-          Ready to find out<br />
-          <span className="shimmer-text">who's winning?</span>
+          Ready to see<br />
+          <span className="shimmer-text">who you're becoming?</span>
         </h2>
         <p style={{ fontSize: 16, color: "#64748b", marginBottom: 40, fontFamily: "'DM Mono', monospace" }}>
-          Join the waitlist. Be first in your league.
+          Join the waitlist. Be the first to track your Life Score.
         </p>
         {!submitted ? (
           <div style={{ display: "flex", gap: 12, justifyContent: "center", flexWrap: "wrap", maxWidth: 480, margin: "0 auto" }}>
