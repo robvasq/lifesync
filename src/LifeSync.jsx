@@ -275,7 +275,7 @@ export default function LifeSync({ user, onSignOut }) {
   const [suppJustLogged, setSuppJustLogged] = useState(null);
   const [aiInput, setAiInput] = useState("");
   const [msgs, setMsgs] = useState([
-    {role:"assistant",text:"Hi Alex! 👋 You're on a 6-month streak paying your credit card — that's boosting your Life Score by 24 points. Keep it up! Ask me anything about your habits, finances, or health."}
+    {role:"assistant",text:`Hi${username && username !== "You" ? " @"+username : ""}! 👋 Welcome to LifeSync. Ask me anything about your habits, finances, or health — I'm here to help you grow your Life Score.`}
   ]);
   const [aiLoading, setAiLoading] = useState(false);
   const [username, setUsername] = useState("You");
@@ -657,10 +657,18 @@ export default function LifeSync({ user, onSignOut }) {
         </div>
         <div style={{display:"flex",alignItems:"center",gap:12}}>
           <div style={{textAlign:"right"}}>
-            <div style={{fontSize:11,color:"#4a7ab5"}}>Life Score</div>
+            <div style={{fontSize:11,color:"#818cf8"}}>Life Score</div>
             <div style={{fontSize:20,fontWeight:900,color:scoreColor}}>{lifeScore} <span style={{fontSize:12,color:"#64748b",fontWeight:400}}>{scoreLabel}</span></div>
           </div>
-          <div style={{width:38,height:38,borderRadius:"50%",background:"linear-gradient(135deg,#1d4ed8,#4ade80)",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:800,fontSize:14}}>AJ</div>
+          <div style={{display:"flex",alignItems:"center",gap:10}}>
+            <div style={{textAlign:"right"}}>
+              <div style={{fontSize:13,fontWeight:700,color:"#f1f5f9"}}>@{username}</div>
+              {onSignOut&&<button onClick={onSignOut} style={{background:"transparent",border:"none",color:"#475569",fontSize:11,cursor:"pointer",padding:0,fontWeight:600}}>Sign out</button>}
+            </div>
+            <div style={{width:40,height:40,borderRadius:"50%",background:"linear-gradient(135deg,#6366f1,#c084fc)",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:800,fontSize:15,color:"#fff",flexShrink:0}}>
+              {username.slice(0,2).toUpperCase()}
+            </div>
+          </div>
         </div>
       </div>
 
