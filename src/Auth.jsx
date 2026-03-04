@@ -244,19 +244,14 @@ function SignUp({ onSwitch, onSuccess }) {
       if (existing) { setError("That username is taken. Try another."); setLoading(false); return; }
 
       // Sign up
-      const { data, error: authError } = await supabase.auth.signUp({ email, password, options: { data: { username: username.toLowerCase() } } });
+      const { data, error: authError } = await supabase.auth.signUp({ 
+        email, 
+        password, 
+        options: { data: { username: username.toLowerCase() } } 
+      });
       if (authError) { setError(authError.message); setLoading(false); return; }
 
-      // Small delay to let auth propagate
-      await new Promise(r => setTimeout(r, 800));
-
-      // Create profile
-      const { error: profileError } = await supabase.from("profiles").insert([{
-        id: data.user.id,
-        username: username.toLowerCase(),
-      }]);
-      if (profileError) { setError(profileError.message); setLoading(false); return; }
-
+      // Trigger handles profile creation automatically
       onSuccess(data.user);
     } catch (e) {
       setError("Something went wrong. Try again.");
