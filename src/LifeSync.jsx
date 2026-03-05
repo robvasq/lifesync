@@ -438,7 +438,7 @@ function GoalCard({ g, onUpdate, onDelete, autoValue, autoLabel }) {
   );
 }
 
-export default function LifeSync({ user, onSignOut, isDemo = false }) {
+export default function LifeSync({ user, onSignOut, isDemo = false }) { // {
   const navigate = useNavigate();
   const DEMO = isDemo ? PICKED_DEMO : DEMO_PROFILES[0];
   const [tab, setTab] = useState("overview");
@@ -1625,14 +1625,14 @@ export default function LifeSync({ user, onSignOut, isDemo = false }) {
                 {/* Score Ranges Reference */}
                 <div style={C.card}>
                   <div style={C.cTitle}>Score Ranges</div>
-                  {[["Exceptional","800–850","#22d3ee",true],["Very Good","740–799","#4ade80",false],["Good","670–739","#facc15",false],["Fair","580–669","#f97316",false],["Poor","300–579","#f87171",false]].map(([label,range,color,top])=>{
+                  {[["Exceptional","800–850","#22d3ee",true],["Very Good","740–799","#4ade80",false],["Good","670–739","#facc15",false],["Fair","580–669","#f97316",false],["Poor","300–579","#f87171",false]].map(([label,range,rangeColor,top])=>{
                     const isCurrent = (label==="Good"&&creditScore>=670&&creditScore<740)||(label==="Fair"&&creditScore>=580&&creditScore<670)||(label==="Very Good"&&creditScore>=740&&creditScore<800)||(label==="Exceptional"&&creditScore>=800)||(label==="Poor"&&creditScore<580);
                     return(
                       <div key={label} style={{...C.row,background:isCurrent?"rgba(255,255,255,0.03)":"transparent",borderRadius:8,padding:"8px 10px",marginBottom:2}}>
                         <div style={{display:"flex",alignItems:"center",gap:10}}>
-                          <div style={{width:10,height:10,borderRadius:"50%",background:color}}/>
+                          <div style={{width:10,height:10,borderRadius:"50%",background:rangeColor}}/>
                           <div>
-                            <div style={{fontSize:13,fontWeight:isCurrent?800:500}}>{label}{isCurrent&&<span style={{fontSize:10,color:color,marginLeft:6,fontWeight:700}}>← You are here</span>}</div>
+                            <div style={{fontSize:13,fontWeight:isCurrent?800:500}}>{label}{isCurrent&&<span style={{fontSize:10,color:rangeColor,marginLeft:6,fontWeight:700}}>← You are here</span>}</div>
                             <div style={{fontSize:11,color:"#64748b"}}>{range}</div>
                           </div>
                         </div>
@@ -2339,9 +2339,9 @@ export default function LifeSync({ user, onSignOut, isDemo = false }) {
                     </div>
                     {/* Streak stats */}
                     <div style={{display:"flex",gap:12}}>
-                      {[["🔥 Current Streak",`${progress.daily_streak||0} days`,"#facc15"],["⚡ Longest Streak",`${progress.longest_streak||0} days`,"#60a5fa"],["✨ Total XP",`${(progress.xp||0).toLocaleString()}`,"#a78bfa"],["🏆 Life Score",`${lifeScore}/100`,"#4ade80"]].map(([label,val,color])=>(
+                      {[["🔥 Current Streak",`${progress.daily_streak||0} days`,"#facc15"],["⚡ Longest Streak",`${progress.longest_streak||0} days`,"#60a5fa"],["✨ Total XP",`${(progress.xp||0).toLocaleString()}`,"#a78bfa"],["🏆 Life Score",`${lifeScore}/100`,"#4ade80"]].map(([label,val,statColor])=>(
                         <div key={label} style={{flex:1,background:"#080f1e",borderRadius:10,padding:"10px 12px",textAlign:"center",border:"1px solid #1a3356"}}>
-                          <div style={{fontSize:15,fontWeight:800,color:color}}>{val}</div>
+                          <div style={{fontSize:15,fontWeight:800,color:statColor}}>{val}</div>
                           <div style={{fontSize:10,color:"#475569",marginTop:2}}>{label}</div>
                         </div>
                       ))}
@@ -2360,10 +2360,10 @@ export default function LifeSync({ user, onSignOut, isDemo = false }) {
                     ["Goal Weight", bs.goal_weight ? `${bs.goal_weight} lbs` : "—", "🎯", "#facc15"],
                     ["BMI", bmi||"—", "📊", bmiColor],
                     ["Daily Calories", tdee ? `~${tdee.toLocaleString()}` : "—", "🔥", "#f97316"],
-                  ].map(([label,val,icon,color])=>(
+                  ].map(([label,val,icon,statColor])=>(
                     <div key={label} style={{background:"#080f1e",border:"1px solid #1a3356",borderRadius:14,padding:"14px 16px",textAlign:"center"}}>
                       <div style={{fontSize:22,marginBottom:6}}>{icon}</div>
-                      <div style={{fontSize:18,fontWeight:800,color:color}}>{val}</div>
+                      <div style={{fontSize:18,fontWeight:800,color:statColor}}>{val}</div>
                       <div style={{fontSize:11,color:"#475569",marginTop:3}}>{label}</div>
                     </div>
                   ))}
@@ -2523,9 +2523,9 @@ export default function LifeSync({ user, onSignOut, isDemo = false }) {
                           ["Light",       tdee-200,  "#64748b", "slight deficit"],
                           ["Maintenance", tdee,      "#4ade80", "maintain weight"],
                           ["Active",      tdee+200,  "#818cf8", "slight surplus"],
-                        ]}.map(([label,cal,color,desc])=>(
+                        ]}.map(([label,cal,calColor,desc])=>(
                           <div key={label} style={{background:"#080f1e",border:"1px solid #1a3356",borderRadius:10,padding:"10px 12px",textAlign:"center"}}>
-                            <div style={{fontSize:16,fontWeight:800,color:color}}>{cal.toLocaleString()}</div>
+                            <div style={{fontSize:16,fontWeight:800,color:calColor}}>{cal.toLocaleString()}</div>
                             <div style={{fontSize:11,color:"#94a3b8",marginTop:2,fontWeight:600}}>{label}</div>
                             <div style={{fontSize:10,color:"#475569",marginTop:1}}>{desc}</div>
                           </div>
@@ -3403,4 +3403,3 @@ export default function LifeSync({ user, onSignOut, isDemo = false }) {
     </div>
   );
 }
-// cache bust Thu Mar  5 13:15:05 PST 2026
