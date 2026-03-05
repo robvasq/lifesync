@@ -1184,7 +1184,6 @@ export default function LifeSync({ user, onSignOut, isDemo = false }) {
                 })()}
               </div>
             </div>
-          </div>
 
           {/* Goals overview widget */}
           {goals.filter(g=>!g.completed).length > 0 && (
@@ -1221,6 +1220,7 @@ export default function LifeSync({ user, onSignOut, isDemo = false }) {
               </div>
             </div>
           )}
+          </div>
         )}
 
         {/* ── HABITS ── */}
