@@ -1,14 +1,10 @@
 import { useState, useEffect } from 'react';
+import supabase from "./supabase";
 import { BrowserRouter, Routes, Route, useNavigate } from 'react-router-dom';
-import { createClient } from '@supabase/supabase-js';
 import Landing from './landing';
 import LifeSync from './LifeSync';
 import Auth from './Auth';
 
-const supabase = createClient(
-  "https://qrtdvkzaffzhhyebnnof.supabase.co",
-  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFydGR2a3phZmZ6aGh5ZWJubm9mIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI2NTM5OTMsImV4cCI6MjA4ODIyOTk5M30.ex7LNx7Fl8GR8CpAf4vXwUlOLl3qGWxLGkxuE194pkE"
-);
 
 const Spinner = () => (
   <div style={{ minHeight:"100vh", background:"#07080f", display:"flex", alignItems:"center", justifyContent:"center" }}>
@@ -55,7 +51,9 @@ function AppRoutes() {
         user ? <LifeSync user={user} onSignOut={handleSignOut} /> : <Auth onAuthenticated={handleAuthenticated} />
       } />
       <Route path="/app" element={
-        user ? <LifeSync user={user} onSignOut={handleSignOut} /> : <Auth onAuthenticated={handleAuthenticated} />
+        user
+          ? <LifeSync user={user} onSignOut={handleSignOut} />
+          : <LifeSync user={null} onSignOut={() => navigate("/")} isDemo={true} />
       } />
       <Route path="*" element={<Landing />} />
     </Routes>
