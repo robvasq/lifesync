@@ -2361,7 +2361,7 @@ export default function LifeSync({ user, onSignOut, isDemo = false }) {
                           ["Active",      tdee+200,  "#818cf8", "slight surplus"],
                         ]}.map(([label,cal,color,desc])=>(
                           <div key={label} style={{background:"#080f1e",border:"1px solid #1a3356",borderRadius:10,padding:"10px 12px",textAlign:"center"}}>
-                            <div style={{fontSize:16,fontWeight:800,color}}>{cal.toLocaleString()}</div>
+                            <div style={{fontSize:16,fontWeight:800,color:color}}>{cal.toLocaleString()}</div>
                             <div style={{fontSize:11,color:"#94a3b8",marginTop:2,fontWeight:600}}>{label}</div>
                             <div style={{fontSize:10,color:"#475569",marginTop:1}}>{desc}</div>
                           </div>
