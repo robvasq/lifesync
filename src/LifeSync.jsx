@@ -418,6 +418,13 @@ export default function LifeSync({ user, onSignOut, isDemo = false }) {
   const [newSupp, setNewSupp] = useState({ name:"", dose:"", timing:"Morning", icon:"💊" });
   const [suppJustLogged, setSuppJustLogged] = useState(null);
   const [username, setUsername] = useState(isDemo ? DEMO.username : "You");
+  // ── BODY STATS & PROFILE ──
+  const [bodyStats, setBodyStats] = useState({ age:"", height_in:"", current_weight:"", goal_weight:"", goal_type:"fat_loss", goal_date:"", goal_label:"" });
+  const [weightLog, setWeightLog] = useState([]);
+  const [showEditProfile, setShowEditProfile] = useState(false);
+  const [profileForm, setProfileForm] = useState({ age:"", height_in:"", current_weight:"", goal_weight:"", goal_type:"fat_loss", goal_date:"", goal_label:"" });
+  const [logWeightVal, setLogWeightVal] = useState("");
+  const [showLogWeight, setShowLogWeight] = useState(false);
   const [aiInput, setAiInput] = useState("");
   const [msgs, setMsgs] = useState([
     {role:"assistant",text:"Hi! 👋 Welcome to LifeSync. Ask me anything about your habits, finances, or health — I'm here to help you grow your Life Score."}
@@ -515,6 +522,14 @@ export default function LifeSync({ user, onSignOut, isDemo = false }) {
         setSupplements(suppData.map(s => ({ ...s, takenToday: s.taken_today, history: Array(28).fill(0) })));
       }
 
+      // Load body stats
+      const { data: bsData } = await supabase.from("body_stats").select("*").eq("user_id", user.id).maybeSingle();
+      if (bsData) { setBodyStats(bsData); setProfileForm(bsData); }
+
+      // Load weight log
+      const { data: wlData } = await supabase.from("weight_log").select("*").eq("user_id", user.id).order("logged_at", { ascending: true });
+      if (wlData) setWeightLog(wlData);
+
       // Load profile username
       const { data: profile } = await supabase
         .from("profiles")
@@ -550,6 +565,39 @@ export default function LifeSync({ user, onSignOut, isDemo = false }) {
     } else {
       await supabase.from("habits").insert([{ user_id: user.id, name: habitId, streak, completed: true }]);
     }
+  };
+
+  // ── SUPABASE: Save body stats ─────────────────────────────────────────────
+  const saveBodyStats = async (form) => {
+    if (!user) return;
+    const payload = {
+      user_id: user.id,
+      age: parseInt(form.age)||null,
+      height_in: parseFloat(form.height_in)||null,
+      current_weight: parseFloat(form.current_weight)||null,
+      goal_weight: parseFloat(form.goal_weight)||null,
+      goal_type: form.goal_type||"fat_loss",
+      goal_date: form.goal_date||null,
+      goal_label: form.goal_label||null,
+      updated_at: new Date().toISOString(),
+    };
+    const { error } = await supabase.from("body_stats").upsert(payload, { onConflict: "user_id" });
+    if (!error) setBodyStats(payload);
+    else console.error("saveBodyStats:", error);
+  };
+
+  const logWeight = async () => {
+    if (!user || !logWeightVal) return;
+    const w = parseFloat(logWeightVal);
+    if (!w) return;
+    const { data } = await supabase.from("weight_log").insert([{ user_id: user.id, weight: w }]).select().single();
+    if (data) {
+      setWeightLog(p => [...p, data]);
+      // Update current weight in body stats
+      await saveBodyStats({ ...bodyStats, current_weight: w });
+      setBodyStats(p => ({ ...p, current_weight: w }));
+    }
+    setLogWeightVal(""); setShowLogWeight(false);
   };
 
   // ── SUPABASE: Save finances ────────────────────────────────────────────────
@@ -811,7 +859,7 @@ export default function LifeSync({ user, onSignOut, isDemo = false }) {
     mbox:{background:"#0d1e35",border:"1px solid #1a3356",borderRadius:20,padding:28,width:380,maxWidth:"92vw"},
   };
 
-  const TABS=[{id:"overview",label:"Overview",icon:"◈"},{id:"habits",label:"Habits",icon:"🔥"},{id:"finances",label:"Finances",icon:"◎"},{id:"health",label:"Health",icon:"◉"},{id:"wellness",label:"Wellness",icon:"🧠"},{id:"league",label:"League",icon:"🏆"},{id:"ai",label:"AI Chat",icon:"✦"}];
+  const TABS=[{id:"overview",label:"Overview",icon:"◈"},{id:"profile",label:"Profile",icon:"👤"},{id:"habits",label:"Habits",icon:"🔥"},{id:"finances",label:"Finances",icon:"◎"},{id:"health",label:"Health",icon:"◉"},{id:"wellness",label:"Wellness",icon:"🧠"},{id:"league",label:"League",icon:"🏆"},{id:"ai",label:"AI Chat",icon:"✦"}];
 
   return (
     <div style={C.app}>
@@ -1716,6 +1764,197 @@ export default function LifeSync({ user, onSignOut, isDemo = false }) {
         )}
 
 
+
+        {/* ── PROFILE & BODY STATS ── */}
+        {tab==="profile"&&(()=>{
+          const bs = bodyStats;
+          const hasStats = bs.height_in && bs.current_weight;
+          const heightFt = bs.height_in ? Math.floor(bs.height_in/12) : null;
+          const heightIn = bs.height_in ? Math.round(bs.height_in%12) : null;
+          const bmi = hasStats ? (bs.current_weight / (bs.height_in * bs.height_in) * 703).toFixed(1) : null;
+          const bmiLabel = bmi ? (bmi<18.5?"Underweight":bmi<25?"Healthy":bmi<30?"Overweight":"Obese") : null;
+          const bmiColor = bmi ? (bmi<18.5?"#60a5fa":bmi<25?"#4ade80":bmi<30?"#facc15":"#f87171") : "#64748b";
+          const tdee = (bs.age && bs.height_in && bs.current_weight) ?
+            Math.round(10 * (bs.current_weight * 0.453592) + 6.25 * (bs.height_in * 2.54) - 5 * bs.age + 5) : null;
+          const goalLbs = bs.goal_weight && bs.current_weight ? Math.abs(bs.current_weight - bs.goal_weight).toFixed(1) : null;
+          const goalDir = bs.goal_weight && bs.current_weight ? (bs.goal_weight < bs.current_weight ? "lose" : "gain") : null;
+          const weeklyChange = tdee && goalDir ? (goalDir==="lose" ? tdee - 500 : tdee + 300) : null;
+          const goalTypes = { fat_loss:"🔥 Fat Loss", muscle_gain:"💪 Muscle Gain", general_fitness:"🏃 General Fitness", maintenance:"⚖️ Maintenance", custom:"🎯 Custom Goal" };
+          const wLogSorted = [...weightLog].sort((a,b) => new Date(a.logged_at)-new Date(b.logged_at));
+          const startWeight = wLogSorted[0]?.weight || bs.current_weight;
+          const totalChange = startWeight && bs.current_weight ? (bs.current_weight - startWeight).toFixed(1) : null;
+
+          return (
+            <div style={{display:"flex",flexDirection:"column",gap:18}}>
+
+              {/* Hero */}
+              <div style={{background:"linear-gradient(135deg,#0d1829,#0a1f3d)",border:"1px solid #1a3356",borderRadius:16,padding:"20px 28px",display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:16}}>
+                <div style={{display:"flex",alignItems:"center",gap:18}}>
+                  <div style={{width:64,height:64,borderRadius:"50%",background:"linear-gradient(135deg,#1d4ed8,#4ade80)",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:900,fontSize:22}}>
+                    {(username||"?").slice(0,2).toUpperCase()}
+                  </div>
+                  <div>
+                    <div style={{fontSize:22,fontWeight:900}}>@{username||"you"}</div>
+                    {bs.goal_type && <div style={{fontSize:13,color:"#818cf8",marginTop:4,fontWeight:600}}>{goalTypes[bs.goal_type]||bs.goal_type}</div>}
+                    {!hasStats && <div style={{fontSize:12,color:"#475569",marginTop:4}}>Add your stats to unlock body tracking</div>}
+                  </div>
+                </div>
+                <button style={{...C.btn("#6366f1")}} onClick={()=>{ setProfileForm({...bs}); setShowEditProfile(true); }}>✏ Edit Profile</button>
+              </div>
+
+              {/* Stats row */}
+              {hasStats && (
+                <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(140px,1fr))",gap:12}}>
+                  {[
+                    ["Age", bs.age ? `${bs.age} yrs` : "—", "🎂", "#818cf8"],
+                    ["Height", heightFt ? `${heightFt}'${heightIn}"` : "—", "📏", "#60a5fa"],
+                    ["Current Weight", bs.current_weight ? `${bs.current_weight} lbs` : "—", "⚖️", "#4ade80"],
+                    ["Goal Weight", bs.goal_weight ? `${bs.goal_weight} lbs` : "—", "🎯", "#facc15"],
+                    ["BMI", bmi||"—", "📊", bmiColor],
+                    ["Daily Calories", tdee ? `~${tdee.toLocaleString()}` : "—", "🔥", "#f97316"],
+                  ].map(([label,val,icon,color])=>(
+                    <div key={label} style={{background:"#080f1e",border:"1px solid #1a3356",borderRadius:14,padding:"14px 16px",textAlign:"center"}}>
+                      <div style={{fontSize:22,marginBottom:6}}>{icon}</div>
+                      <div style={{fontSize:18,fontWeight:800,color}}>{val}</div>
+                      <div style={{fontSize:11,color:"#475569",marginTop:3}}>{label}</div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {!hasStats && (
+                <div style={{...C.card,textAlign:"center",padding:"40px 20px"}}>
+                  <div style={{fontSize:48,marginBottom:12}}>📊</div>
+                  <div style={{fontSize:16,fontWeight:700,marginBottom:8}}>Set Up Your Body Profile</div>
+                  <div style={{fontSize:13,color:"#475569",marginBottom:20,maxWidth:400,margin:"0 auto 20px"}}>Add your age, height, and weight to unlock BMI, calorie targets, and progress tracking.</div>
+                  <button style={C.btn("#6366f1")} onClick={()=>{ setProfileForm({...bs}); setShowEditProfile(true); }}>+ Add Your Stats</button>
+                </div>
+              )}
+
+              {/* Goal card */}
+              {hasStats && bs.goal_type && (
+                <div style={{...C.card}}>
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:16}}>
+                    <div>
+                      <div style={C.cTitle}>Your Goal</div>
+                      <div style={{fontSize:20,fontWeight:800,color:"#818cf8",marginTop:4}}>{goalTypes[bs.goal_type]||bs.goal_type}</div>
+                      {bs.goal_label && <div style={{fontSize:13,color:"#94a3b8",marginTop:4}}>"{bs.goal_label}"</div>}
+                    </div>
+                    {bs.goal_date && (
+                      <div style={{textAlign:"right"}}>
+                        <div style={{fontSize:11,color:"#64748b"}}>Target date</div>
+                        <div style={{fontSize:14,fontWeight:700,color:"#e2e8f0"}}>{new Date(bs.goal_date).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})}</div>
+                        <div style={{fontSize:11,color:"#64748b",marginTop:2}}>
+                          {Math.max(0,Math.ceil((new Date(bs.goal_date)-new Date())/(1000*60*60*24)))} days left
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                  {goalLbs && (
+                    <>
+                      <div style={{display:"flex",justifyContent:"space-between",fontSize:13,marginBottom:6}}>
+                        <span style={{color:"#64748b"}}>Need to {goalDir} <strong style={{color:"#e2e8f0"}}>{goalLbs} lbs</strong></span>
+                        {weeklyChange && <span style={{color:"#4ade80"}}>~{weeklyChange.toLocaleString()} cal/day target</span>}
+                      </div>
+                      <div style={{background:"#1e293b",borderRadius:99,height:10,overflow:"hidden",marginBottom:8}}>
+                        {(() => {
+                          const pct = startWeight && bs.goal_weight && bs.current_weight ?
+                            Math.min(100, Math.max(0, Math.abs((bs.current_weight - startWeight) / (bs.goal_weight - startWeight)) * 100)) : 0;
+                          return <div style={{width:`${pct}%`,background:"linear-gradient(90deg,#6366f1,#818cf8)",height:"100%",borderRadius:99,transition:"width 1s"}}/>;
+                        })()}
+                      </div>
+                      {totalChange !== null && parseFloat(totalChange) !== 0 && (
+                        <div style={{fontSize:12,color:goalDir==="lose"?(parseFloat(totalChange)<0?"#4ade80":"#f87171"):(parseFloat(totalChange)>0?"#4ade80":"#f87171")}}>
+                          {parseFloat(totalChange) < 0 ? "▼" : "▲"} {Math.abs(totalChange)} lbs since you started
+                        </div>
+                      )}
+                    </>
+                  )}
+                  {(bs.goal_type==="fat_loss"||bs.goal_type==="muscle_gain"||bs.goal_type==="general_fitness") && tdee && (
+                    <div style={{marginTop:14,display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10}}>
+                      {[
+                        ["Maintenance",tdee,"#64748b"],
+                        [bs.goal_type==="muscle_gain"?"Bulk":"Cut",bs.goal_type==="muscle_gain"?tdee+300:tdee-500,"#818cf8"],
+                        [bs.goal_type==="muscle_gain"?"Aggressive Bulk":"Aggressive Cut",bs.goal_type==="muscle_gain"?tdee+500:tdee-750,"#6366f1"],
+                      ].map(([label,cal,color])=>(
+                        <div key={label} style={{background:"#080f1e",border:"1px solid #1a3356",borderRadius:10,padding:"10px 12px",textAlign:"center"}}>
+                          <div style={{fontSize:16,fontWeight:800,color}}>{cal.toLocaleString()}</div>
+                          <div style={{fontSize:10,color:"#475569",marginTop:2}}>{label}</div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Weight log */}
+              {hasStats && (
+                <div style={C.card}>
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
+                    <div style={C.cTitle}>⚖️ Weight Log</div>
+                    <button style={{...C.btn("#6366f1"),fontSize:11,padding:"4px 12px"}} onClick={()=>setShowLogWeight(true)}>+ Log Weight</button>
+                  </div>
+                  {wLogSorted.length===0 ? (
+                    <div style={{textAlign:"center",padding:"20px 0",color:"#475569",fontSize:13}}>No weight entries yet. Log your first weigh-in!</div>
+                  ) : (
+                    <>
+                      {/* Mini chart */}
+                      <div style={{position:"relative",height:120,marginBottom:16,paddingLeft:40}}>
+                        {(() => {
+                          const weights = wLogSorted.map(w=>w.weight);
+                          const minW = Math.min(...weights) - 2;
+                          const maxW = Math.max(...weights) + 2;
+                          const range = maxW - minW || 1;
+                          return (
+                            <>
+                              {[maxW, (maxW+minW)/2, minW].map((v,i)=>(
+                                <div key={i} style={{position:"absolute",left:0,top:`${(i/2)*90}%`,fontSize:10,color:"#475569",transform:"translateY(-50%)"}}>{v.toFixed(0)}</div>
+                              ))}
+                              {weights.map((s,si)=>{
+                                if(si===0) return null;
+                                const x1=`${((si-1)/(weights.length-1||1))*100}%`,x2=`${(si/(weights.length-1||1))*100}%`;
+                                const y1=`${((maxW-weights[si-1])/range)*90}%`,y2=`${((maxW-s)/range)*90}%`;
+                                const col = goalDir==="lose"?(s<=weights[si-1]?"#4ade80":"#f87171"):(s>=weights[si-1]?"#4ade80":"#f87171");
+                                return(
+                                  <svg key={si} style={{position:"absolute",inset:0,width:"100%",height:"100%",overflow:"visible",pointerEvents:"none"}}>
+                                    <line x1={x1} y1={y1} x2={x2} y2={y2} stroke={col} strokeWidth="2" strokeLinecap="round"/>
+                                    <circle cx={x2} cy={y2} r="4" fill={col}/>
+                                  </svg>
+                                );
+                              })}
+                              {bs.goal_weight && (
+                                <div style={{position:"absolute",left:40,right:0,top:`${((maxW-bs.goal_weight)/range)*90}%`,height:1,background:"rgba(99,102,241,0.4)",borderTop:"1px dashed #6366f1"}}/>
+                              )}
+                            </>
+                          );
+                        })()}
+                      </div>
+                      {/* Last 5 entries */}
+                      <div style={{display:"flex",flexDirection:"column",gap:6}}>
+                        {[...wLogSorted].reverse().slice(0,5).map((entry,i)=>{
+                          const prev = [...wLogSorted].reverse()[i+1];
+                          const delta = prev ? (entry.weight - prev.weight).toFixed(1) : null;
+                          const col = delta===null?"#64748b":goalDir==="lose"?(parseFloat(delta)<=0?"#4ade80":"#f87171"):(parseFloat(delta)>=0?"#4ade80":"#f87171");
+                          return(
+                            <div key={entry.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"8px 12px",background:"#080f1e",borderRadius:10}}>
+                              <div style={{fontSize:13,color:"#94a3b8"}}>{new Date(entry.logged_at).toLocaleDateString("en-US",{month:"short",day:"numeric"})}</div>
+                              <div style={{display:"flex",alignItems:"center",gap:10}}>
+                                {delta!==null && <div style={{fontSize:12,fontWeight:700,color:col}}>{parseFloat(delta)>0?"+":""}{delta} lbs</div>}
+                                <div style={{fontSize:16,fontWeight:800,color:"#e2e8f0"}}>{entry.weight} lbs</div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </>
+                  )}
+                </div>
+              )}
+
+            </div>
+          );
+        })()}
+
         {/* ── LEAGUE ── */}
         {tab==="league"&&(()=>{
           const sorted = [...leagueMembers].map(m => m.isYou ? {...m, score: myLeagueScore, name: username||"You", avatar: (username||"YO").slice(0,2).toUpperCase()} : m).sort((a,b)=>b.score-a.score);
@@ -2083,6 +2322,72 @@ export default function LifeSync({ user, onSignOut, isDemo = false }) {
             <div style={{display:"flex",gap:10,marginTop:8}}>
               <button style={{...C.btn("#6366f1"),flex:1}} onClick={async()=>{await saveFinances(financeForm.income,financeForm.expenses,financeForm.savings);setShowEditFinances(false);}}>Save →</button>
               <button style={{...C.ghost,padding:"9px 18px"}} onClick={()=>setShowEditFinances(false)}>Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+
+      {/* ── EDIT PROFILE MODAL ── */}
+      {showEditProfile&&(
+        <div style={C.overlay} onClick={()=>setShowEditProfile(false)}>
+          <div style={{...C.mbox,width:460,maxHeight:"85vh",overflowY:"auto"}} onClick={e=>e.stopPropagation()}>
+            <div style={{fontSize:18,fontWeight:800,marginBottom:4}}>👤 Your Profile</div>
+            <div style={{fontSize:12,color:"#64748b",marginBottom:20}}>Your stats are private — only you can see them.</div>
+
+            {/* Basic stats */}
+            <div style={{fontSize:12,color:"#818cf8",fontWeight:700,marginBottom:10,textTransform:"uppercase",letterSpacing:1}}>Body Stats</div>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:16}}>
+              {[["Age (years)","age","25"],["Height (inches)","height_in","70"],["Current Weight (lbs)","current_weight","175"],["Goal Weight (lbs)","goal_weight","160"]].map(([label,key,ph])=>(
+                <div key={key}>
+                  <div style={{fontSize:11,color:"#64748b",marginBottom:5}}>{label}</div>
+                  <input value={profileForm[key]||""} onChange={e=>setProfileForm(p=>({...p,[key]:e.target.value}))} placeholder={ph} style={{...C.inp,width:"100%"}} type="number"/>
+                </div>
+              ))}
+            </div>
+
+            {/* Goal type */}
+            <div style={{fontSize:12,color:"#818cf8",fontWeight:700,marginBottom:10,textTransform:"uppercase",letterSpacing:1}}>Goal Type</div>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:16}}>
+              {[["fat_loss","🔥 Fat Loss"],["muscle_gain","💪 Muscle Gain"],["general_fitness","🏃 General Fitness"],["maintenance","⚖️ Maintenance"],["custom","🎯 Custom Goal"]].map(([val,label])=>(
+                <button key={val} onClick={()=>setProfileForm(p=>({...p,goal_type:val}))}
+                  style={{background:profileForm.goal_type===val?"rgba(99,102,241,0.2)":"#080f1e",border:`1px solid ${profileForm.goal_type===val?"#6366f1":"#1a3356"}`,color:profileForm.goal_type===val?"#818cf8":"#64748b",borderRadius:10,padding:"10px 12px",cursor:"pointer",fontSize:13,fontWeight:profileForm.goal_type===val?700:400,textAlign:"left"}}>
+                  {label}
+                </button>
+              ))}
+            </div>
+
+            {/* Custom goal label */}
+            <div style={{marginBottom:12}}>
+              <div style={{fontSize:11,color:"#64748b",marginBottom:5}}>Goal description (optional)</div>
+              <input value={profileForm.goal_label||""} onChange={e=>setProfileForm(p=>({...p,goal_label:e.target.value}))} placeholder='e.g. "I want to reach 175 lbs by summer"' style={{...C.inp,width:"100%"}}/>
+            </div>
+
+            {/* Target date */}
+            <div style={{marginBottom:20}}>
+              <div style={{fontSize:11,color:"#64748b",marginBottom:5}}>Target date (optional)</div>
+              <input value={profileForm.goal_date||""} onChange={e=>setProfileForm(p=>({...p,goal_date:e.target.value}))} style={{...C.inp,width:"100%"}} type="date"/>
+            </div>
+
+            <div style={{display:"flex",gap:10}}>
+              <button style={{...C.btn("#6366f1"),flex:1}} onClick={async()=>{ await saveBodyStats(profileForm); setShowEditProfile(false); }}>Save Profile →</button>
+              <button style={{...C.ghost,padding:"9px 18px"}} onClick={()=>setShowEditProfile(false)}>Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── LOG WEIGHT MODAL ── */}
+      {showLogWeight&&(
+        <div style={C.overlay} onClick={()=>setShowLogWeight(false)}>
+          <div style={{...C.mbox,width:340}} onClick={e=>e.stopPropagation()}>
+            <div style={{fontSize:18,fontWeight:800,marginBottom:4}}>⚖️ Log Today's Weight</div>
+            <div style={{fontSize:12,color:"#64748b",marginBottom:16}}>Weigh yourself first thing in the morning for consistency.</div>
+            <input value={logWeightVal} onChange={e=>setLogWeightVal(e.target.value)} placeholder="e.g. 174.5" style={{...C.inp,width:"100%",fontSize:24,textAlign:"center",fontWeight:800}} type="number" autoFocus/>
+            <div style={{fontSize:11,color:"#475569",textAlign:"center",marginTop:6,marginBottom:16}}>lbs</div>
+            <div style={{display:"flex",gap:10}}>
+              <button style={{...C.btn("#6366f1"),flex:1}} onClick={logWeight} disabled={!logWeightVal}>Save</button>
+              <button style={{...C.ghost,padding:"9px 18px"}} onClick={()=>setShowLogWeight(false)}>Cancel</button>
             </div>
           </div>
         </div>
