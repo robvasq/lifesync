@@ -351,18 +351,18 @@ const INITIAL_TRASH_TALK = [
   { id:4, from:"Sofia R.", avatar:"SR", text:"Rough week ngl. Life's been busy but I'm not out yet 💪",        time:"1d ago",  likes:5 },
 ];
 
-const calcCreditFactors = (debts, habits, monthlyIncome) => {
+const calcCreditFactors = (debts, habits, monthlyIncome, creditDetails={}) => {
   const payHabit = habits.find(h=>h.id==="cardpay");
   const payStreak = payHabit?.streak||0;
   const payValue = Math.min(100, 60 + payStreak * 2);
   const payColor = payValue>=80?"#4ade80":payValue>=60?"#facc15":"#f87171";
   const payDesc = payStreak>0 ? `${payStreak}-month on-time streak` : "No payment history logged yet";
-  const ccDebt = debts.filter(d=>(d.name||"").toLowerCase().includes("credit")||(parseFloat(d.apr)>15)).reduce((a,d)=>a+(d.balance||0),0);
-  const estLimit = Math.max(ccDebt*2, 5000);
-  const utilPct = estLimit>0 ? Math.round((ccDebt/estLimit)*100) : 0;
+  const ccBal = creditDetails.cc_balance>0 ? creditDetails.cc_balance : debts.filter(d=>(d.name||"").toLowerCase().includes("credit")||(parseFloat(d.apr)>15)).reduce((a,d)=>a+(d.balance||0),0);
+  const ccLim = creditDetails.cc_limit>0 ? creditDetails.cc_limit : Math.max(ccBal*2, 5000);
+  const utilPct = ccLim>0 ? Math.round((ccBal/ccLim)*100) : 0;
   const utilValue = Math.max(0, 100-utilPct);
   const utilColor = utilPct<=30?"#4ade80":utilPct<=50?"#facc15":"#f87171";
-  const utilDesc = ccDebt>0 ? `$${ccDebt.toLocaleString()} CC balance (~${utilPct}% utilization)` : "No credit card debt — great!";
+  const utilDesc = ccBal>0 ? `$${ccBal.toLocaleString()} / $${ccLim.toLocaleString()} limit (${utilPct}%)` : "No credit card debt — great!";
   const totalDebt = debts.reduce((a,d)=>a+(d.balance||0),0);
   const dti = monthlyIncome>0 ? Math.round((totalDebt/(monthlyIncome*12))*100) : 0;
   const dtiValue = Math.max(0, 100-dti);
@@ -372,7 +372,10 @@ const calcCreditFactors = (debts, habits, monthlyIncome) => {
     { label:"Payment History",    weight:35, value:payValue,  desc:payDesc,  color:payColor  },
     { label:"Credit Utilization", weight:30, value:utilValue, desc:utilDesc, color:utilColor },
     { label:"Debt-to-Income",     weight:20, value:dtiValue,  desc:dtiDesc,  color:dtiColor  },
-    { label:"Credit Age",         weight:15, value:72,        desc:"Avg account age: 4.2 yrs", color:"#facc15" },
+    { label:"Credit Age",         weight:15,
+      value: creditDetails.credit_age_years>=7?90:creditDetails.credit_age_years>=4?75:creditDetails.credit_age_years>=2?60:creditDetails.credit_age_years>0?45:72,
+      desc: creditDetails.credit_age_years>0?`Avg account age: ${creditDetails.credit_age_years} yrs`:"Enter your credit age below",
+      color: creditDetails.credit_age_years>=7?"#4ade80":creditDetails.credit_age_years>=4?"#facc15":creditDetails.credit_age_years>0?"#f97316":"#64748b" },
     { label:"New Credit",         weight:10, value:90,        desc:"No hard inquiries (12mo)", color:"#a78bfa" },
   ];
 };
@@ -473,8 +476,11 @@ export default function LifeSync({ user, onSignOut, isDemo = false }) {
   const [newMed, setNewMed] = useState({name:"",dose:"",schedule:"Daily",refill_days:30});
   const [newCheckup, setNewCheckup] = useState({name:"",last_date:"",urgent:false});
   const [financeForm, setFinanceForm] = useState({income:"",expenses:"",savings:""});
+  const [creditDetails, setCreditDetails] = useState({ cc_balance:0, cc_limit:0, credit_age_years:0, num_accounts:0, hard_inquiries:0, family_size:1, has_student_loans:false, is_first_time_buyer:false, employer_has_401k:false });
+  const [showEditCreditDetails, setShowEditCreditDetails] = useState(false);
+  const [creditDetailForm, setCreditDetailForm] = useState({});
   const [creditHistory, setCreditHistory] = useState(isDemo ? DEMO.creditHistory : CREDIT_HISTORY);
-  const creditFactors = calcCreditFactors(debts, habits, monthlyIncome);
+  const creditFactors = calcCreditFactors(debts, habits, monthlyIncome, creditDetails);
   const [showUpdateScore, setShowUpdateScore] = useState(false);
   const [newScoreInput, setNewScoreInput] = useState("");
   const [simMode, setSimMode] = useState(false);
@@ -614,6 +620,17 @@ export default function LifeSync({ user, onSignOut, isDemo = false }) {
         if (finData.monthly_expenses) setMonthlyExpenses(finData.monthly_expenses);
         if (finData.savings) setSavings(finData.savings);
         setFinanceForm({ income: finData.monthly_income||"", expenses: finData.monthly_expenses||"", savings: finData.savings||"" });
+        setCreditDetails({
+          cc_balance: finData.cc_balance||0,
+          cc_limit: finData.cc_limit||0,
+          credit_age_years: finData.credit_age_years||0,
+          num_accounts: finData.num_accounts||0,
+          hard_inquiries: finData.hard_inquiries||0,
+          family_size: finData.family_size||1,
+          has_student_loans: finData.has_student_loans||false,
+          is_first_time_buyer: finData.is_first_time_buyer||false,
+          employer_has_401k: finData.employer_has_401k||false,
+        });
       }
 
       // Load debts
@@ -826,6 +843,24 @@ export default function LifeSync({ user, onSignOut, isDemo = false }) {
   };
 
   // ── SUPABASE: Save finances ────────────────────────────────────────────────
+  const saveCreditDetails = async (form) => {
+    if (!user) return;
+    const payload = {
+      cc_balance: parseFloat(form.cc_balance)||0,
+      cc_limit: parseFloat(form.cc_limit)||0,
+      credit_age_years: parseFloat(form.credit_age_years)||0,
+      num_accounts: parseInt(form.num_accounts)||0,
+      hard_inquiries: parseInt(form.hard_inquiries)||0,
+      family_size: parseInt(form.family_size)||1,
+      has_student_loans: !!form.has_student_loans,
+      is_first_time_buyer: !!form.is_first_time_buyer,
+      employer_has_401k: !!form.employer_has_401k,
+      updated_at: new Date().toISOString(),
+    };
+    await supabase.from("finances").upsert({ user_id: user.id, ...payload }, { onConflict: "user_id" });
+    setCreditDetails(payload);
+  };
+
   const saveFinances = async (income, expenses, sav) => {
     if (!user) return;
     const inc = parseFloat(income)||0;
@@ -1537,20 +1572,54 @@ export default function LifeSync({ user, onSignOut, isDemo = false }) {
                   </div>
                 </div>
 
+                {/* Credit Details Input */}
+                <div style={C.card}>
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
+                    <div style={C.cTitle}>📋 Your Credit Details</div>
+                    <button style={{...C.ghost,fontSize:11,padding:"4px 12px"}} onClick={()=>{setCreditDetailForm({...creditDetails});setShowEditCreditDetails(true);}}>✏ Edit</button>
+                  </div>
+                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+                    {[
+                      ["CC Balance", creditDetails.cc_balance>0?`$${creditDetails.cc_balance.toLocaleString()}`:"Not set", creditDetails.cc_balance>0?"#e2e8f0":"#475569"],
+                      ["CC Limit",   creditDetails.cc_limit>0?`$${creditDetails.cc_limit.toLocaleString()}`:"Not set",  creditDetails.cc_limit>0?"#e2e8f0":"#475569"],
+                      ["Credit Age", creditDetails.credit_age_years>0?`${creditDetails.credit_age_years} yrs`:"Not set", creditDetails.credit_age_years>0?"#e2e8f0":"#475569"],
+                      ["Accounts",   creditDetails.num_accounts>0?creditDetails.num_accounts:"Not set", creditDetails.num_accounts>0?"#e2e8f0":"#475569"],
+                    ].map(([label,val,col])=>(
+                      <div key={label} style={{background:"#080f1e",borderRadius:10,padding:"10px 14px"}}>
+                        <div style={{fontSize:11,color:"#475569",marginBottom:3}}>{label}</div>
+                        <div style={{fontSize:15,fontWeight:700,color:col}}>{val}</div>
+                      </div>
+                    ))}
+                  </div>
+                  {(!creditDetails.cc_balance && !creditDetails.credit_age_years) && (
+                    <div style={{marginTop:12,fontSize:12,color:"#475569",textAlign:"center"}}>Add your details above for more accurate score breakdown and personalized tips.</div>
+                  )}
+                </div>
+
                 {/* Action Tips */}
                 <div style={C.card}>
-                  <div style={C.cTitle}>Personalized Tips to Boost Your Score</div>
-                  {[
-                    {impact:"+25–45 pts", tip:"Pay credit card below 30% utilization ($1,500 balance)", urgent:true},
-                    {impact:"+10–20 pts", tip:"Keep your 14-month on-time streak — don't miss any payments", urgent:false},
-                    {impact:"+5–10 pts",  tip:"Avoid opening new credit lines in the next 6 months", urgent:false},
-                    {impact:"+5 pts",     tip:"Request a credit limit increase (without hard inquiry)", urgent:false},
-                  ].map((t,i)=>(
-                    <div key={i} style={{display:"flex",gap:12,padding:"10px 0",borderBottom:"1px solid #0f2240",alignItems:"flex-start"}}>
-                      <span style={{fontSize:12,fontWeight:800,color:t.urgent?"#4ade80":"#60a5fa",background:t.urgent?"rgba(74,222,128,0.1)":"rgba(96,165,250,0.1)",padding:"3px 8px",borderRadius:99,whiteSpace:"nowrap",marginTop:1}}>{t.impact}</span>
-                      <div style={{fontSize:13,color:"#94a3b8",lineHeight:1.5}}>{t.tip}</div>
-                    </div>
-                  ))}
+                  <div style={C.cTitle}>💡 Personalized Tips</div>
+                  {(()=>{
+                    const tips = [];
+                    const util = creditDetails.cc_limit>0 ? Math.round((creditDetails.cc_balance/creditDetails.cc_limit)*100) : 0;
+                    if (util > 30) tips.push({ impact:"+25–45 pts", tip:`Pay CC down to $${Math.round(creditDetails.cc_limit*0.3).toLocaleString()} (30% of your $${creditDetails.cc_limit.toLocaleString()} limit)`, urgent:true });
+                    else if (util > 0) tips.push({ impact:"✅ Good", tip:`Utilization at ${util}% — keep it below 30% to maintain your score`, urgent:false });
+                    const payHabit = habits.find(h=>h.id==="cardpay");
+                    if (payHabit?.streak > 0) tips.push({ impact:"+10–20 pts", tip:`Keep your ${payHabit.streak}-month on-time streak — payment history is 35% of your score`, urgent:false });
+                    else tips.push({ impact:"🔴 High Impact", tip:"Set up autopay to never miss a payment — payment history is 35% of your score", urgent:true });
+                    if (creditDetails.hard_inquiries > 2) tips.push({ impact:"-5–10 pts", tip:`${creditDetails.hard_inquiries} hard inquiries detected — avoid new credit applications for 12 months`, urgent:true });
+                    if (creditDetails.credit_age_years > 0 && creditDetails.credit_age_years < 4) tips.push({ impact:"+5–15 pts", tip:"Keep your oldest accounts open — closing them reduces average credit age", urgent:false });
+                    if (!creditDetails.cc_limit) tips.push({ impact:"+5 pts", tip:"Request a credit limit increase (ask for soft pull only — won't affect your score)", urgent:false });
+                    const totalDebt = debts.reduce((a,d)=>a+(d.balance||0),0);
+                    if (monthlyIncome>0 && totalDebt > monthlyIncome*6) tips.push({ impact:"+15–30 pts", tip:`Focus on paying down $${totalDebt.toLocaleString()} total debt — high debt-to-income hurts your score`, urgent:true });
+                    if (tips.length === 0) tips.push({ impact:"✅ Looking good", tip:"Add your credit details above for personalized tips", urgent:false });
+                    return tips.map((t,i)=>(
+                      <div key={i} style={{display:"flex",gap:12,padding:"10px 0",borderBottom:"1px solid #0f2240",alignItems:"flex-start"}}>
+                        <span style={{fontSize:12,fontWeight:800,color:t.urgent?"#f87171":"#4ade80",background:t.urgent?"rgba(248,113,113,0.1)":"rgba(74,222,128,0.1)",padding:"3px 8px",borderRadius:99,whiteSpace:"nowrap",marginTop:1}}>{t.impact}</span>
+                        <div style={{fontSize:13,color:"#94a3b8",lineHeight:1.5}}>{t.tip}</div>
+                      </div>
+                    ));
+                  })()}
                 </div>
 
                 {/* Score Ranges Reference */}
@@ -1619,6 +1688,101 @@ export default function LifeSync({ user, onSignOut, isDemo = false }) {
               )}
             </div>
 
+
+            {/* ── BENEFITS CHECKER ── */}
+            <div style={C.card}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
+                <div style={C.cTitle}>💰 Benefits & Programs You May Qualify For</div>
+                <button style={{...C.ghost,fontSize:11,padding:"4px 12px"}} onClick={()=>{setCreditDetailForm({...creditDetails});setShowEditCreditDetails(true);}}>Update Info</button>
+              </div>
+              <div style={{fontSize:12,color:"#475569",marginBottom:16}}>Based on your income, debt, and profile. Always verify eligibility directly with the program.</div>
+              {(()=>{
+                const annualIncome = monthlyIncome * 12;
+                const totalDebt = debts.reduce((a,d)=>a+(d.balance||0),0);
+                const fs = creditDetails.family_size || 1;
+                const benefits = [];
+
+                // EITC
+                const eitcLimit = fs===1?17640:fs===2?46560:fs===3?52918:59187;
+                const eitcStatus = annualIncome>0&&annualIncome<=eitcLimit?"qualify":annualIncome>0&&annualIncome<=eitcLimit*1.2?"maybe":"unlikely";
+                benefits.push({ name:"Earned Income Tax Credit (EITC)", icon:"🏛️", category:"Tax Credit",
+                  status: eitcStatus,
+                  detail: eitcStatus==="qualify"?`Your income (~$${annualIncome.toLocaleString()}/yr) may qualify — up to $${fs===1?"560":fs===2?"3,995":fs===3?"6,604":"7,430"} back`:
+                    eitcStatus==="maybe"?"Your income is near the limit — file and let the IRS determine eligibility":"Income likely too high for current household size",
+                  action:"File Form 1040 — claim on your tax return", link:"https://www.irs.gov/credits-deductions/individuals/earned-income-tax-credit"});
+
+                // Saver's Credit
+                const saverLimit = fs===1?23000:fs===2?34500:46000;
+                const saverStatus = annualIncome>0&&annualIncome<=saverLimit?"qualify":annualIncome>0&&annualIncome<=saverLimit*1.1?"maybe":"unlikely";
+                benefits.push({ name:"Saver's Credit (Retirement)", icon:"🏦", category:"Tax Credit",
+                  status: saverStatus,
+                  detail: saverStatus==="qualify"?"Up to $1,000 credit for contributing to a 401(k) or IRA — free money for saving":saverStatus==="maybe"?"Near the income threshold — may qualify depending on filing status":"Income likely above Saver's Credit limit",
+                  action:"Contribute to 401(k) or IRA and claim Form 8880"});
+
+                // Student Loan Forgiveness
+                if (creditDetails.has_student_loans) {
+                  benefits.push({ name:"Income-Driven Repayment (IDR) Forgiveness", icon:"🎓", category:"Student Loans",
+                    status: annualIncome>0&&totalDebt>annualIncome*0.5?"qualify":"maybe",
+                    detail: "If payments under an IDR plan are less than interest, the remainder may be forgiven after 20–25 years. SAVE plan caps payments at 5–10% of discretionary income.",
+                    action:"Apply at studentaid.gov/idr", link:"https://studentaid.gov/manage-loans/repayment/plans/income-driven"});
+                  if (annualIncome < 60000) {
+                    benefits.push({ name:"Public Service Loan Forgiveness (PSLF)", icon:"🏥", category:"Student Loans",
+                      status:"maybe",
+                      detail:"If you work for a government or nonprofit employer, remaining balance forgiven after 120 qualifying payments (10 years).",
+                      action:"Check employer eligibility at studentaid.gov/pslf"});
+                  }
+                }
+
+                // First-Time Homebuyer
+                if (creditDetails.is_first_time_buyer) {
+                  const hbLimit = fs===1?60000:fs===2?80000:100000;
+                  benefits.push({ name:"First-Time Homebuyer Assistance", icon:"🏠", category:"Housing",
+                    status: annualIncome<=hbLimit?"qualify":annualIncome<=hbLimit*1.3?"maybe":"unlikely",
+                    detail: `Down payment assistance programs available in most states. FHA loans require only 3.5% down with a 580+ credit score. ${creditScore>=580?"Your credit score qualifies for FHA.":"Work on credit score to reach 580 for FHA eligibility."}`,
+                    action:"Search your state's HFA program at hud.gov/buying"});
+                }
+
+                // 401k match
+                if (creditDetails.employer_has_401k) {
+                  benefits.push({ name:"401(k) Employer Match", icon:"💼", category:"Employer Benefits",
+                    status: savings < monthlyIncome*3?"qualify":"maybe",
+                    detail: `If your employer matches contributions, unclaimed match is free money. Common match: 50–100% of contributions up to 6% of salary. At $${monthlyIncome.toLocaleString()}/mo that's ~$${Math.round(monthlyIncome*0.06).toLocaleString()}/mo in free contributions.`,
+                    action:"Contact HR to confirm match % and enroll"});
+                  benefits.push({ name:"HSA / FSA Tax Savings", icon:"🏥", category:"Employer Benefits",
+                    status:"qualify",
+                    detail:"Health Savings Account (HSA) and Flexible Spending Account (FSA) reduce taxable income. HSA 2024 limit: $4,150 single / $8,300 family. Triple tax advantage.",
+                    action:"Enroll during open enrollment or contact HR"});
+                }
+
+                // Credit card rewards
+                benefits.push({ name:"Credit Card Rewards Optimization", icon:"💳", category:"CC Rewards",
+                  status:"qualify",
+                  detail: monthlyExpenses>2000?`At $${monthlyExpenses.toLocaleString()}/mo spending, a 2% cash back card earns ~$${Math.round(monthlyExpenses*0.02*12).toLocaleString()}/yr. Travel cards can earn 3–5x on dining/travel.`:
+                    "Even at lower spending, the right rewards card can earn $200–500/yr with no extra effort.",
+                  action: creditScore>=720?"You qualify for premium rewards cards (Chase Sapphire, Amex Gold)":creditScore>=670?"Good credit — qualify for most rewards cards":creditScore>=580?"Fair credit — secured cards with rewards available":"Build credit first with a secured card"});
+
+                const statusColor = s => s==="qualify"?"#4ade80":s==="maybe"?"#facc15":"#475569";
+                const statusLabel = s => s==="qualify"?"✅ Likely Qualify":s==="maybe"?"⚠️ Possibly Qualify":"❌ Unlikely";
+                const statusBg = s => s==="qualify"?"rgba(74,222,128,0.08)":s==="maybe"?"rgba(250,204,21,0.08)":"rgba(71,85,105,0.08)";
+
+                return benefits.map((b,i)=>(
+                  <div key={i} style={{background:statusBg(b.status),border:`1px solid ${statusColor(b.status)}22`,borderRadius:14,padding:"16px 18px",marginBottom:10,borderLeft:`3px solid ${statusColor(b.status)}`}}>
+                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:8,flexWrap:"wrap",gap:8}}>
+                      <div style={{display:"flex",alignItems:"center",gap:10}}>
+                        <span style={{fontSize:20}}>{b.icon}</span>
+                        <div>
+                          <div style={{fontSize:14,fontWeight:800}}>{b.name}</div>
+                          <span style={{fontSize:10,fontWeight:700,color:"#64748b",background:"#080f1e",border:"1px solid #1a3356",borderRadius:6,padding:"2px 7px",textTransform:"uppercase"}}>{b.category}</span>
+                        </div>
+                      </div>
+                      <span style={{fontSize:12,fontWeight:800,color:statusColor(b.status),background:statusBg(b.status),border:`1px solid ${statusColor(b.status)}44`,borderRadius:99,padding:"3px 10px",whiteSpace:"nowrap"}}>{statusLabel(b.status)}</span>
+                    </div>
+                    <div style={{fontSize:13,color:"#94a3b8",lineHeight:1.6,marginBottom:8}}>{b.detail}</div>
+                    <div style={{fontSize:12,color:"#60a5fa",fontWeight:600}}>→ {b.action}</div>
+                  </div>
+                ));
+              })()}
+            </div>
             {/* Finance Goals */}
             {goals.filter(g => g.category === "finance" && !g.completed).length > 0 && (
               <div style={C.card}>
@@ -2450,7 +2614,7 @@ export default function LifeSync({ user, onSignOut, isDemo = false }) {
           );
         })()}
 
-        {/* ── LEAGUE ── */}
+        {/* ── LEAGUE ── */
         {tab==="league"&&(()=>{
           const sorted = [...leagueMembers].map(m => m.isYou ? {...m, score: myLeagueScore, name: username||"You", avatar: (username||"YO").slice(0,2).toUpperCase()} : m).sort((a,b)=>b.score-a.score);
           const myRank = sorted.findIndex(m=>m.isYou) + 1;
@@ -3023,6 +3187,63 @@ export default function LifeSync({ user, onSignOut, isDemo = false }) {
             <div style={{display:"flex",gap:10}}>
               <button style={{...C.btn("#6366f1"),flex:1}} onClick={logWeight} disabled={!logWeightVal}>Save</button>
               <button style={{...C.ghost,padding:"9px 18px"}} onClick={()=>setShowLogWeight(false)}>Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+
+      {/* ── EDIT CREDIT DETAILS MODAL ── */}
+      {showEditCreditDetails&&(
+        <div style={C.overlay} onClick={()=>setShowEditCreditDetails(false)}>
+          <div style={{...C.mbox,width:480,maxHeight:"85vh",overflowY:"auto"}} onClick={e=>e.stopPropagation()}>
+            <div style={{fontSize:18,fontWeight:800,marginBottom:4}}>📋 Credit & Benefits Details</div>
+            <div style={{fontSize:12,color:"#64748b",marginBottom:20}}>Used to calculate your real score breakdown and check benefit eligibility. Private — only you can see this.</div>
+
+            <div style={{fontSize:12,color:"#818cf8",fontWeight:700,marginBottom:10,textTransform:"uppercase",letterSpacing:1}}>Credit Card</div>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:16}}>
+              {[["CC Balance ($)","cc_balance","2400"],["Credit Limit ($)","cc_limit","5000"]].map(([label,key,ph])=>(
+                <div key={key}>
+                  <div style={{fontSize:11,color:"#64748b",marginBottom:5}}>{label}</div>
+                  <input value={creditDetailForm[key]||""} onChange={e=>setCreditDetailForm(p=>({...p,[key]:e.target.value}))} placeholder={ph} style={{...C.inp,width:"100%"}} type="number"/>
+                </div>
+              ))}
+            </div>
+
+            <div style={{fontSize:12,color:"#818cf8",fontWeight:700,marginBottom:10,textTransform:"uppercase",letterSpacing:1}}>Credit History</div>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10,marginBottom:16}}>
+              {[["Credit Age (yrs)","credit_age_years","4"],["# of Accounts","num_accounts","3"],["Hard Inquiries","hard_inquiries","1"]].map(([label,key,ph])=>(
+                <div key={key}>
+                  <div style={{fontSize:11,color:"#64748b",marginBottom:5}}>{label}</div>
+                  <input value={creditDetailForm[key]||""} onChange={e=>setCreditDetailForm(p=>({...p,[key]:e.target.value}))} placeholder={ph} style={{...C.inp,width:"100%"}} type="number"/>
+                </div>
+              ))}
+            </div>
+
+            <div style={{fontSize:12,color:"#818cf8",fontWeight:700,marginBottom:10,textTransform:"uppercase",letterSpacing:1}}>Benefits Eligibility Info</div>
+            <div style={{marginBottom:12}}>
+              <div style={{fontSize:11,color:"#64748b",marginBottom:5}}>Household / family size</div>
+              <input value={creditDetailForm.family_size||""} onChange={e=>setCreditDetailForm(p=>({...p,family_size:e.target.value}))} placeholder="1" style={{...C.inp,width:"100%"}} type="number"/>
+            </div>
+            <div style={{display:"flex",flexDirection:"column",gap:10,marginBottom:20}}>
+              {[
+                ["has_student_loans","I have student loans"],
+                ["is_first_time_buyer","I am a first-time homebuyer (never owned a home)"],
+                ["employer_has_401k","My employer offers a 401(k) or retirement plan"],
+              ].map(([key,label])=>(
+                <label key={key} style={{display:"flex",alignItems:"center",gap:12,cursor:"pointer",padding:"10px 14px",background:"#080f1e",borderRadius:10,border:`1px solid ${creditDetailForm[key]?"#6366f1":"#1a3356"}`}}>
+                  <div onClick={()=>setCreditDetailForm(p=>({...p,[key]:!p[key]}))}
+                    style={{width:20,height:20,borderRadius:5,border:`2px solid ${creditDetailForm[key]?"#6366f1":"#334155"}`,background:creditDetailForm[key]?"#6366f1":"transparent",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,transition:"all 0.2s"}}>
+                    {creditDetailForm[key]&&<span style={{color:"#fff",fontSize:12,fontWeight:900}}>✓</span>}
+                  </div>
+                  <span style={{fontSize:13,color:creditDetailForm[key]?"#e2e8f0":"#64748b"}}>{label}</span>
+                </label>
+              ))}
+            </div>
+
+            <div style={{display:"flex",gap:10}}>
+              <button style={{...C.btn("#6366f1"),flex:1}} onClick={async()=>{ await saveCreditDetails(creditDetailForm); setShowEditCreditDetails(false); }}>Save →</button>
+              <button style={{...C.ghost,padding:"9px 18px"}} onClick={()=>setShowEditCreditDetails(false)}>Cancel</button>
             </div>
           </div>
         </div>
