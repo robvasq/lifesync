@@ -1687,7 +1687,7 @@ export default function LifeSync({ user, onSignOut, isDemo = false }) {
                         <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
                           <div><div style={{fontSize:14,fontWeight:700}}>{m.name}</div><div style={{fontSize:12,color:"#64748b"}}>{m.dose} · {m.schedule}</div></div>
                           <div style={{display:"flex",alignItems:"center",gap:8}}>
-                            <div style={{textAlign:"right"}}><div style={{fontSize:11,color:"#64748b"}}>Refill in</div><div style={{fontSize:18,fontWeight:800,color}}>{days}d</div></div>
+                            <div style={{textAlign:"right"}}><div style={{fontSize:11,color:"#64748b"}}>Refill in</div><div style={{fontSize:18,fontWeight:800,color:color}}>{days}d</div></div>
                             <button onClick={()=>removeMed(m.id)} style={{background:"none",border:"none",color:"#334155",cursor:"pointer",fontSize:16,padding:"0 4px"}}>×</button>
                           </div>
                         </div>
@@ -2177,7 +2177,7 @@ export default function LifeSync({ user, onSignOut, isDemo = false }) {
                     <div style={{display:"flex",gap:12}}>
                       {[["🔥 Current Streak",`${progress.daily_streak||0} days`,"#facc15"],["⚡ Longest Streak",`${progress.longest_streak||0} days`,"#60a5fa"],["✨ Total XP",`${(progress.xp||0).toLocaleString()}`,"#a78bfa"],["🏆 Life Score",`${lifeScore}/100`,"#4ade80"]].map(([label,val,color])=>(
                         <div key={label} style={{flex:1,background:"#080f1e",borderRadius:10,padding:"10px 12px",textAlign:"center",border:"1px solid #1a3356"}}>
-                          <div style={{fontSize:15,fontWeight:800,color}}>{val}</div>
+                          <div style={{fontSize:15,fontWeight:800,color:color}}>{val}</div>
                           <div style={{fontSize:10,color:"#475569",marginTop:2}}>{label}</div>
                         </div>
                       ))}
@@ -2199,7 +2199,7 @@ export default function LifeSync({ user, onSignOut, isDemo = false }) {
                   ].map(([label,val,icon,color])=>(
                     <div key={label} style={{background:"#080f1e",border:"1px solid #1a3356",borderRadius:14,padding:"14px 16px",textAlign:"center"}}>
                       <div style={{fontSize:22,marginBottom:6}}>{icon}</div>
-                      <div style={{fontSize:18,fontWeight:800,color}}>{val}</div>
+                      <div style={{fontSize:18,fontWeight:800,color:color}}>{val}</div>
                       <div style={{fontSize:11,color:"#475569",marginTop:3}}>{label}</div>
                     </div>
                   ))}
