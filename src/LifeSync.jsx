@@ -1722,7 +1722,7 @@ export default function LifeSync({ user, onSignOut, isDemo = false }) {
           const myRank = sorted.findIndex(m=>m.isYou) + 1;
           const me = sorted.find(m=>m.isYou);
           const rankColor = (r) => r===1?"#facc15":r===2?"#94a3b8":r===3?"#cd7f32":"#4a7ab5";
-          const rankMedal = (r) => r===1?"🥇":r===2?"🥈":r===3?"🥉":`#${r}`;
+          const rankMedal = (r) => r===1?"🥇":r===2?"🥈":r===3?"🥉":"";
           const scoreColor2 = (s) => s>=65?"#4ade80":s>=55?"#facc15":s>=45?"#f97316":"#f87171";
           const deltaColor = (d) => d>0?"#4ade80":d<0?"#f87171":"#64748b";
           const deltaIcon  = (d) => d>0?"▲":d<0?"▼":"—";
@@ -1745,7 +1745,7 @@ export default function LifeSync({ user, onSignOut, isDemo = false }) {
               <div style={{background:"linear-gradient(135deg,#0e1a08,#1a2e0a)",border:"1px solid #2a4a1a",borderRadius:16,padding:"20px 28px",display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:16}}>
                 <div>
                   <div style={{fontSize:11,color:"#4ade80",fontWeight:700,textTransform:"uppercase",letterSpacing:1.5,marginBottom:6}}>🏆 Life Score League — Season 1</div>
-                  <div style={{fontSize:28,fontWeight:900}}>You're ranked <span style={{color:rankColor(myRank)}}>{rankMedal(myRank)} #{myRank}</span> of {leagueMembers.length}</div>
+                  <div style={{fontSize:28,fontWeight:900}}>You're ranked <span style={{color:rankColor(myRank)}}>{myRank<=3?rankMedal(myRank):`#${myRank}`}</span> of {leagueMembers.length}</div>
                   <div style={{fontSize:13,color:"#64748b",marginTop:4}}>{leagueEndsIn} weeks left · Everyone starts at 50 · Private stats, public scores only</div>
                 </div>
                 <div style={{display:"flex",gap:10,flexWrap:"wrap",alignItems:"center"}}>
