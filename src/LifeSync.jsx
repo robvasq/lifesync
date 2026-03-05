@@ -192,7 +192,7 @@ const Flame = ({ streak }) => {
   return (
     <div style={{display:"flex",alignItems:"center",gap:4}}>
       <span style={{fontSize:16}}>{icon}</span>
-      <span style={{fontSize:18,fontWeight:900,color}}>{streak}</span>
+      <span style={{fontSize:18,fontWeight:900,color:color}}>{streak}</span>
       <span style={{fontSize:10,color:"#64748b",fontWeight:600}}>streak</span>
     </div>
   );
