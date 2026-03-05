@@ -339,6 +339,25 @@ const DEMO_PROFILES = [
 ];
 const PICKED_DEMO = DEMO_PROFILES[Math.floor(Math.random() * DEMO_PROFILES.length)];
 
+
+// ─── LEAGUE DATA ──────────────────────────────────────────────────────────────
+const LEAGUE_CODE = "SYNC-4829";
+const LEAGUE_LINK = "https://lifesync.to/join/SYNC-4829";
+const WEEKS = ["Week 1","Week 2","Week 3","Week 4 (Now)"];
+const INITIAL_LEAGUE_MEMBERS = [
+  { id:"you",    name:"You",        avatar:"ME", score:50, prevScore:50, streakHighlight:"Building...", weeklyHistory:[50,50,50,50], isYou:true },
+  { id:"marcus", name:"Marcus T.",  avatar:"MT", score:58, prevScore:54, streakHighlight:"Budget 6🔥",  weeklyHistory:[50,51,53,58], isYou:false },
+  { id:"priya",  name:"Priya K.",   avatar:"PK", score:55, prevScore:56, streakHighlight:"Meditate 9🔥",weeklyHistory:[50,52,56,55], isYou:false },
+  { id:"deon",   name:"Deon W.",    avatar:"DW", score:62, prevScore:58, streakHighlight:"Water 14🔥",  weeklyHistory:[50,54,58,62], isYou:false },
+  { id:"sofia",  name:"Sofia R.",   avatar:"SR", score:47, prevScore:49, streakHighlight:"Sleep 5🔥",   weeklyHistory:[50,48,49,47], isYou:false },
+];
+const INITIAL_TRASH_TALK = [
+  { id:1, from:"Deon W.",  avatar:"DW", text:"Already at 62 and it's only week 4 👀 y'all better catch up", time:"2h ago",  likes:3 },
+  { id:2, from:"Priya K.", avatar:"PK", text:"My meditation streak is unmatched 🧘 9 days running",           time:"5h ago",  likes:2 },
+  { id:3, from:"Marcus T.",avatar:"MT", text:"Budget habit finally clicking. Finance pillar up huge 📊",       time:"1d ago",  likes:4 },
+  { id:4, from:"Sofia R.", avatar:"SR", text:"Rough week ngl. Life's been busy but I'm not out yet 💪",        time:"1d ago",  likes:5 },
+];
+
 export default function LifeSync({ user, onSignOut, isDemo = false }) {
   const navigate = useNavigate();
   const DEMO = isDemo ? PICKED_DEMO : DEMO_PROFILES[0];
@@ -405,6 +424,17 @@ export default function LifeSync({ user, onSignOut, isDemo = false }) {
   ]);
   const [aiLoading, setAiLoading] = useState(false);
   const chatRef = useRef(null);
+  // ── LEAGUE STATE ──
+  const [leagueMembers, setLeagueMembers] = useState(INITIAL_LEAGUE_MEMBERS);
+  const [trashTalk, setTrashTalk] = useState(INITIAL_TRASH_TALK);
+  const [trashInput, setTrashInput] = useState("");
+  const [showInviteModal, setShowInviteModal] = useState(false);
+  const [inviteCopied, setInviteCopied] = useState(null);
+  const [leagueView, setLeagueView] = useState("leaderboard");
+  const [selectedMatchup, setSelectedMatchup] = useState(null);
+  const leagueWeek = 4;
+  const leagueTotalWeeks = 16;
+  const leagueEndsIn = leagueTotalWeeks - leagueWeek;
   const financeData = {
     totalDebt: debts.reduce((a, d) => a + (d.balance||0), 0),
     income: monthlyIncome,
@@ -413,6 +443,7 @@ export default function LifeSync({ user, onSignOut, isDemo = false }) {
     lowRefillMeds: medications.filter(m => (m.refill_days||30) <= 7).length,
   };
   const lifeScore = calcLifeScore(habits, financeData);
+  const myLeagueScore = 50 + Math.max(0, lifeScore - 50);
   const scoreBreakdown = calcLifeScoreBreakdown(habits, financeData);
 
   // ── SUPABASE: Load user data on mount ──────────────────────────────────────
@@ -524,13 +555,20 @@ export default function LifeSync({ user, onSignOut, isDemo = false }) {
   // ── SUPABASE: Save finances ────────────────────────────────────────────────
   const saveFinances = async (income, expenses, sav) => {
     if (!user) return;
-    const { data: existing } = await supabase.from("finances").select("id").eq("user_id", user.id).single().catch(()=>({data:null}));
-    const payload = { monthly_income: parseFloat(income)||0, monthly_expenses: parseFloat(expenses)||0, savings: parseFloat(sav)||0, updated_at: new Date().toISOString() };
-    if (existing) { await supabase.from("finances").update(payload).eq("id", existing.id); }
-    else { await supabase.from("finances").insert([{ user_id: user.id, ...payload }]); }
-    setMonthlyIncome(parseFloat(income)||0);
-    setMonthlyExpenses(parseFloat(expenses)||0);
-    setSavings(parseFloat(sav)||0);
+    const inc = parseFloat(income)||0;
+    const exp = parseFloat(expenses)||0;
+    const savAmt = parseFloat(sav)||0;
+    const { error } = await supabase.from("finances").upsert(
+      { user_id: user.id, monthly_income: inc, monthly_expenses: exp, savings: savAmt, updated_at: new Date().toISOString() },
+      { onConflict: "user_id" }
+    );
+    if (!error) {
+      setMonthlyIncome(inc);
+      setMonthlyExpenses(exp);
+      setSavings(savAmt);
+    } else {
+      console.error("saveFinances error:", error);
+    }
   };
 
   const addDebt = async () => {
@@ -584,12 +622,10 @@ export default function LifeSync({ user, onSignOut, isDemo = false }) {
   // ── SUPABASE: Save credit score ─────────────────────────────────────────────
   const saveCreditScore = async (score) => {
     if (!user) return;
-    const { data: existing } = await supabase.from("finances").select("id").eq("user_id", user.id).single();
-    if (existing) {
-      await supabase.from("finances").update({ credit_score: score, updated_at: new Date().toISOString() }).eq("id", existing.id);
-    } else {
-      await supabase.from("finances").insert([{ user_id: user.id, credit_score: score }]);
-    }
+    await supabase.from("finances").upsert(
+      { user_id: user.id, credit_score: score, updated_at: new Date().toISOString() },
+      { onConflict: "user_id" }
+    );
   };
 
   // ── SUPABASE: Save life score history weekly ────────────────────────────────
@@ -775,7 +811,7 @@ export default function LifeSync({ user, onSignOut, isDemo = false }) {
     mbox:{background:"#0d1e35",border:"1px solid #1a3356",borderRadius:20,padding:28,width:380,maxWidth:"92vw"},
   };
 
-  const TABS=[{id:"overview",label:"Overview",icon:"◈"},{id:"habits",label:"Habits",icon:"🔥"},{id:"finances",label:"Finances",icon:"◎"},{id:"health",label:"Health",icon:"◉"},{id:"wellness",label:"Wellness",icon:"🧠"},{id:"ai",label:"AI Chat",icon:"✦"}];
+  const TABS=[{id:"overview",label:"Overview",icon:"◈"},{id:"habits",label:"Habits",icon:"🔥"},{id:"finances",label:"Finances",icon:"◎"},{id:"health",label:"Health",icon:"◉"},{id:"wellness",label:"Wellness",icon:"🧠"},{id:"league",label:"League",icon:"🏆"},{id:"ai",label:"AI Chat",icon:"✦"}];
 
   return (
     <div style={C.app}>
@@ -1237,13 +1273,30 @@ export default function LifeSync({ user, onSignOut, isDemo = false }) {
           <div style={{display:"flex",flexDirection:"column",gap:18}}>
             <div style={C.g()}>
               <div style={C.card}>
-                <div style={C.cTitle}>Preventive Care Checklist</div>
-                {[["Annual Physical","8 months ago",true],["Dental Cleaning","14 months ago",true],["Eye Exam","1 year ago",false],["Blood Pressure Check","3 months ago",false]].map(([name,last,urgent])=>(
-                  <div key={name} style={{background:urgent?"rgba(248,113,113,0.07)":"rgba(96,165,250,0.07)",border:`1px solid ${urgent?"rgba(248,113,113,0.3)":"rgba(96,165,250,0.2)"}`,borderRadius:10,padding:"10px 14px",marginBottom:8,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-                    <div><div style={{fontSize:13,fontWeight:600}}>{name}</div><div style={{fontSize:11,color:"#64748b"}}>Last: {last}</div></div>
-                    <div style={{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:6}}><Tag status={urgent?"overdue":"upcoming"}/><button onClick={()=>setTab("ai")} style={C.ghost}>Get help →</button></div>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
+                  <div style={C.cTitle}>Preventive Care Checklist</div>
+                  <button style={{...C.btn("#6366f1"),fontSize:11,padding:"4px 12px"}} onClick={()=>setShowAddCheckup(true)}>+ Add</button>
+                </div>
+                {checkups.length===0?(
+                  <div style={{textAlign:"center",padding:"20px 0"}}>
+                    <div style={{fontSize:28,marginBottom:8}}>🩺</div>
+                    <div style={{fontSize:13,color:"#475569",marginBottom:10}}>No checkups added yet.</div>
+                    <button style={{...C.btn("#6366f1"),fontSize:12}} onClick={()=>setShowAddCheckup(true)}>+ Add Checkup</button>
                   </div>
-                ))}
+                ):(
+                  checkups.map(ch=>(
+                    <div key={ch.id} style={{background:ch.urgent?"rgba(248,113,113,0.07)":"rgba(96,165,250,0.07)",border:`1px solid ${ch.urgent?"rgba(248,113,113,0.3)":"rgba(96,165,250,0.2)"}`,borderRadius:10,padding:"10px 14px",marginBottom:8,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                      <div>
+                        <div style={{fontSize:13,fontWeight:600}}>{ch.name}</div>
+                        {ch.last_date&&<div style={{fontSize:11,color:"#64748b"}}>Last: {ch.last_date}</div>}
+                      </div>
+                      <div style={{display:"flex",alignItems:"center",gap:8}}>
+                        <Tag status={ch.urgent?"overdue":"upcoming"}/>
+                        <button onClick={()=>removeCheckup(ch.id)} style={{background:"none",border:"none",color:"#334155",cursor:"pointer",fontSize:16}}>×</button>
+                      </div>
+                    </div>
+                  ))
+                )}
               </div>
               <div style={C.card}>
                 <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
@@ -1661,6 +1714,244 @@ export default function LifeSync({ user, onSignOut, isDemo = false }) {
             </div>
           </div>
         )}
+
+
+        {/* ── LEAGUE ── */}
+        {tab==="league"&&(()=>{
+          const sorted = [...leagueMembers].map(m => m.isYou ? {...m, score: myLeagueScore, name: username||"You", avatar: (username||"YO").slice(0,2).toUpperCase()} : m).sort((a,b)=>b.score-a.score);
+          const myRank = sorted.findIndex(m=>m.isYou) + 1;
+          const me = sorted.find(m=>m.isYou);
+          const rankColor = (r) => r===1?"#facc15":r===2?"#94a3b8":r===3?"#cd7f32":"#4a7ab5";
+          const rankMedal = (r) => r===1?"🥇":r===2?"🥈":r===3?"🥉":`#${r}`;
+          const scoreColor2 = (s) => s>=65?"#4ade80":s>=55?"#facc15":s>=45?"#f97316":"#f87171";
+          const deltaColor = (d) => d>0?"#4ade80":d<0?"#f87171":"#64748b";
+          const deltaIcon  = (d) => d>0?"▲":d<0?"▼":"—";
+          const pct = (leagueWeek / leagueTotalWeeks) * 100;
+
+          const postTrash = () => {
+            if (!trashInput.trim()) return;
+            setTrashTalk(p => [{id:Date.now(), from:username||"You", avatar:(username||"YO").slice(0,2).toUpperCase(), text:trashInput.trim(), time:"Just now", likes:0}, ...p]);
+            setTrashInput("");
+          };
+          const copyToClipboard = (type) => {
+            navigator.clipboard.writeText(type==="code"?LEAGUE_CODE:LEAGUE_LINK).catch(()=>{});
+            setInviteCopied(type);
+            setTimeout(()=>setInviteCopied(null), 2200);
+          };
+
+          return (
+            <div style={{display:"flex",flexDirection:"column",gap:18}}>
+              {/* Hero banner */}
+              <div style={{background:"linear-gradient(135deg,#0e1a08,#1a2e0a)",border:"1px solid #2a4a1a",borderRadius:16,padding:"20px 28px",display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:16}}>
+                <div>
+                  <div style={{fontSize:11,color:"#4ade80",fontWeight:700,textTransform:"uppercase",letterSpacing:1.5,marginBottom:6}}>🏆 Life Score League — Season 1</div>
+                  <div style={{fontSize:28,fontWeight:900}}>You're ranked <span style={{color:rankColor(myRank)}}>{rankMedal(myRank)} #{myRank}</span> of {leagueMembers.length}</div>
+                  <div style={{fontSize:13,color:"#64748b",marginTop:4}}>{leagueEndsIn} weeks left · Everyone starts at 50 · Private stats, public scores only</div>
+                </div>
+                <div style={{display:"flex",gap:10,flexWrap:"wrap",alignItems:"center"}}>
+                  <button style={{...C.btn("#059669"),fontSize:13}} onClick={()=>setShowInviteModal(true)}>+ Invite Friends</button>
+                  <div style={{textAlign:"center",background:"rgba(74,222,128,0.08)",border:"1px solid rgba(74,222,128,0.2)",borderRadius:12,padding:"8px 20px"}}>
+                    <div style={{fontSize:11,color:"#4ade80",fontWeight:700,textTransform:"uppercase",letterSpacing:1}}>Your Score</div>
+                    <div style={{fontSize:28,fontWeight:900,color:scoreColor2(myLeagueScore)}}>{myLeagueScore}</div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Season progress */}
+              <div style={{...C.card,padding:"14px 22px"}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+                  <div style={{fontSize:12,color:"#64748b",fontWeight:700}}>Season Progress — Week {leagueWeek} of {leagueTotalWeeks}</div>
+                  <div style={{fontSize:12,color:"#4ade80",fontWeight:700}}>{leagueEndsIn} weeks to go</div>
+                </div>
+                <div style={{background:"#1e293b",borderRadius:99,height:8,overflow:"hidden"}}>
+                  <div style={{width:`${pct}%`,background:"linear-gradient(90deg,#4ade80,#22d3ee)",height:"100%",borderRadius:99}}/>
+                </div>
+                <div style={{display:"flex",justifyContent:"space-between",fontSize:10,color:"#475569",marginTop:4}}>
+                  <span>Start</span><span>Halfway</span><span>End 🏆</span>
+                </div>
+              </div>
+
+              {/* Sub-nav */}
+              <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+                {[["leaderboard","🏅 Leaderboard"],["matchup","⚔️ Head-to-Head"],["history","📈 Score History"]].map(([v,l])=>(
+                  <button key={v} onClick={()=>setLeagueView(v)} style={{...C.ghost,color:leagueView===v?"#4ade80":"#64748b",border:`1px solid ${leagueView===v?"#4ade80":"#1a3356"}`,background:leagueView===v?"rgba(74,222,128,0.08)":"transparent",borderRadius:10,padding:"8px 16px",fontSize:13,fontWeight:700}}>
+                    {l}
+                  </button>
+                ))}
+              </div>
+
+              {/* LEADERBOARD */}
+              {leagueView==="leaderboard"&&(
+                <div style={{display:"flex",flexDirection:"column",gap:10}}>
+                  {sorted.map((m,i)=>{
+                    const delta = m.score - (m.weeklyHistory?.[m.weeklyHistory.length-2]??50);
+                    const isLeading = i===0;
+                    return(
+                      <div key={m.id} style={{background:m.isYou?"linear-gradient(145deg,#0a1e0f,#071510)":"linear-gradient(145deg,#0d1e35,#091629)",border:`1px solid ${m.isYou?"#1a4a2e":"#1a3356"}`,borderRadius:16,padding:"16px 20px",display:"flex",alignItems:"center",gap:16,position:"relative",overflow:"hidden"}}>
+                        {isLeading&&<div style={{position:"absolute",top:0,left:0,right:0,height:2,background:"linear-gradient(90deg,#facc15,#f97316,#facc15)"}}/>}
+                        <div style={{fontSize:24,width:36,textAlign:"center",flexShrink:0}}>{rankMedal(i+1)}</div>
+                        <div style={{width:42,height:42,borderRadius:"50%",background:m.isYou?"linear-gradient(135deg,#1d4ed8,#4ade80)":"linear-gradient(135deg,#1a3356,#0f2240)",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:800,fontSize:13,flexShrink:0}}>{m.avatar}</div>
+                        <div style={{flex:1,minWidth:0}}>
+                          <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:3}}>
+                            <span style={{fontSize:15,fontWeight:800}}>{m.name}</span>
+                            {m.isYou&&<span style={{fontSize:10,background:"rgba(74,222,128,0.15)",color:"#4ade80",padding:"2px 7px",borderRadius:99,fontWeight:700,border:"1px solid rgba(74,222,128,0.3)"}}>YOU</span>}
+                            {isLeading&&!m.isYou&&<span style={{fontSize:10,background:"rgba(250,204,21,0.15)",color:"#facc15",padding:"2px 7px",borderRadius:99,fontWeight:700}}>LEADING</span>}
+                          </div>
+                          <div style={{fontSize:12,color:"#4a7ab5"}}>Top streak: <span style={{color:"#facc15",fontWeight:700}}>{m.streakHighlight}</span></div>
+                        </div>
+                        <div style={{textAlign:"right",flexShrink:0}}>
+                          <div style={{fontSize:26,fontWeight:900,color:scoreColor2(m.score)}}>{m.score}</div>
+                          <div style={{fontSize:12,fontWeight:700,color:deltaColor(delta)}}>{deltaIcon(delta)} {Math.abs(delta)} this wk</div>
+                        </div>
+                        <div style={{display:"flex",alignItems:"flex-end",gap:2,height:28,flexShrink:0}}>
+                          {(m.weeklyHistory||[50]).map((s,si)=>{
+                            const h = Math.max(4,Math.round(((s-45)/25)*26));
+                            const isLast = si===(m.weeklyHistory.length-1);
+                            return <div key={si} style={{width:6,height:h,borderRadius:"2px 2px 0 0",background:isLast?scoreColor2(s):"#1e3a5f"}}/>;
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* HEAD-TO-HEAD */}
+              {leagueView==="matchup"&&(
+                <div style={{display:"flex",flexDirection:"column",gap:18}}>
+                  <div style={{fontSize:13,color:"#64748b"}}>Pick an opponent to compare your progress. Only Life Scores and streak highlights are visible — no personal finance or health data is shared.</div>
+                  <div style={C.g()}>
+                    {sorted.filter(m=>!m.isYou).map(opp=>{
+                      const myS = myLeagueScore;
+                      const diff = myS - opp.score;
+                      const winning = diff >= 0;
+                      return(
+                        <div key={opp.id} onClick={()=>setSelectedMatchup(selectedMatchup===opp.id?null:opp.id)} style={{...C.card,cursor:"pointer",border:selectedMatchup===opp.id?"1px solid #4ade80":"1px solid #1a3356"}}>
+                          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:selectedMatchup===opp.id?16:0}}>
+                            <div style={{display:"flex",alignItems:"center",gap:12}}>
+                              <div style={{width:38,height:38,borderRadius:"50%",background:"linear-gradient(135deg,#1a3356,#0f2240)",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:800,fontSize:13}}>{opp.avatar}</div>
+                              <div><div style={{fontSize:14,fontWeight:700}}>{opp.name}</div><div style={{fontSize:12,color:"#facc15"}}>{opp.streakHighlight}</div></div>
+                            </div>
+                            <div style={{textAlign:"right"}}>
+                              <div style={{fontSize:11,color:"#64748b"}}>Their score</div>
+                              <div style={{fontSize:20,fontWeight:900,color:scoreColor2(opp.score)}}>{opp.score}</div>
+                            </div>
+                          </div>
+                          {selectedMatchup===opp.id&&(
+                            <div>
+                              <div style={{background:"#080f1e",borderRadius:12,padding:"14px 16px",marginBottom:12}}>
+                                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
+                                  <div style={{textAlign:"center"}}><div style={{fontSize:11,color:"#4ade80",fontWeight:700,marginBottom:4}}>YOU</div><div style={{fontSize:32,fontWeight:900,color:scoreColor2(myS)}}>{myS}</div></div>
+                                  <div style={{textAlign:"center"}}><div style={{fontSize:20,color:"#64748b"}}>⚔️</div><div style={{fontSize:13,fontWeight:800,color:winning?"#4ade80":"#f87171",marginTop:4}}>{winning?"You're ahead":"Behind by"} {Math.abs(diff)} pts</div></div>
+                                  <div style={{textAlign:"center"}}><div style={{fontSize:11,color:"#94a3b8",fontWeight:700,marginBottom:4}}>{opp.name.split(" ")[0].toUpperCase()}</div><div style={{fontSize:32,fontWeight:900,color:scoreColor2(opp.score)}}>{opp.score}</div></div>
+                                </div>
+                                <div style={{marginBottom:8}}><div style={{fontSize:11,color:"#4a7ab5",marginBottom:4}}>You</div><div style={{background:"#1e293b",borderRadius:99,height:8,overflow:"hidden"}}><div style={{width:`${Math.min(100,myS)}%`,background:"#4ade80",height:"100%",borderRadius:99}}/></div></div>
+                                <div><div style={{fontSize:11,color:"#4a7ab5",marginBottom:4}}>{opp.name}</div><div style={{background:"#1e293b",borderRadius:99,height:8,overflow:"hidden"}}><div style={{width:`${Math.min(100,opp.score)}%`,background:"#60a5fa",height:"100%",borderRadius:99}}/></div></div>
+                              </div>
+                              <div style={{fontSize:12,color:"#64748b",lineHeight:1.6,textAlign:"center"}}>
+                                {winning?`You're ${diff} pts ahead of ${opp.name.split(" ")[0]}. Keep your streaks going! 🔥`:`${opp.name.split(" ")[0]} is ${-diff} pts ahead. Log your habits to close the gap! 💪`}
+                              </div>
+                            </div>
+                          )}
+                          {selectedMatchup!==opp.id&&<div style={{fontSize:12,color:"#4a7ab5",textAlign:"center",marginTop:10}}>Tap to compare →</div>}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* SCORE HISTORY */}
+              {leagueView==="history"&&(
+                <div style={C.card}>
+                  <div style={C.cTitle}>Weekly Score History</div>
+                  <div style={{marginBottom:16,fontSize:13,color:"#64748b"}}>All players start at 50. Scores reflect Life Score growth over the season.</div>
+                  <div style={{display:"flex",flexWrap:"wrap",gap:10,marginBottom:18}}>
+                    {sorted.map((m,i)=>{
+                      const colors=["#4ade80","#facc15","#60a5fa","#f97316","#a78bfa"];
+                      return(<div key={m.id} style={{display:"flex",alignItems:"center",gap:6,fontSize:12}}><div style={{width:12,height:3,borderRadius:99,background:colors[i]}}/><span style={{color:m.isYou?"#4ade80":"#94a3b8",fontWeight:m.isYou?800:400}}>{m.name}{m.isYou?" (You)":""}</span></div>);
+                    })}
+                  </div>
+                  <div style={{position:"relative",height:180,paddingLeft:32}}>
+                    {[70,60,50,40].map(v=>(<div key={v} style={{position:"absolute",left:0,top:`${((70-v)/30)*100}%`,fontSize:10,color:"#475569",transform:"translateY(-50%)"}}>{v}</div>))}
+                    {[70,60,50,40].map(v=>(<div key={v} style={{position:"absolute",left:32,right:0,top:`${((70-v)/30)*100}%`,height:1,background:"rgba(30,58,95,0.5)"}}/>))}
+                    {sorted.map((m,mi)=>{
+                      const colors=["#4ade80","#facc15","#60a5fa","#f97316","#a78bfa"];
+                      const hist = m.isYou?[...(m.weeklyHistory||[50]).slice(0,-1),myLeagueScore]:(m.weeklyHistory||[50]);
+                      return hist.map((s,si)=>{
+                        if(si===0)return null;
+                        const x1=`${((si-1)/(WEEKS.length-1))*100}%`,x2=`${(si/(WEEKS.length-1))*100}%`;
+                        const y1=`${((70-hist[si-1])/30)*100}%`,y2=`${((70-s)/30)*100}%`;
+                        return(<svg key={`${mi}-${si}`} style={{position:"absolute",inset:0,width:"100%",height:"100%",overflow:"visible",pointerEvents:"none"}}><line x1={x1} y1={y1} x2={x2} y2={y2} stroke={colors[mi]} strokeWidth={m.isYou?2.5:1.5} strokeLinecap="round"/><circle cx={x2} cy={y2} r={m.isYou?4:3} fill={colors[mi]}/></svg>);
+                      });
+                    })}
+                  </div>
+                  <div style={{display:"flex",justifyContent:"space-between",paddingLeft:32,marginTop:8}}>
+                    {WEEKS.map(w=><div key={w} style={{fontSize:10,color:"#475569",textAlign:"center"}}>{w}</div>)}
+                  </div>
+                </div>
+              )}
+
+              {/* LEAGUE CHAT */}
+              <div style={C.card}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
+                  <div style={C.cTitle}>💬 League Chat</div>
+                  <div style={{fontSize:11,color:"#4a7ab5"}}>{leagueMembers.length} members</div>
+                </div>
+                <div style={{display:"flex",gap:10,marginBottom:16}}>
+                  <div style={{width:34,height:34,borderRadius:"50%",background:"linear-gradient(135deg,#1d4ed8,#4ade80)",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:800,fontSize:12,flexShrink:0}}>{(username||"YO").slice(0,2).toUpperCase()}</div>
+                  <div style={{flex:1,display:"flex",gap:8}}>
+                    <input value={trashInput} onChange={e=>setTrashInput(e.target.value)} onKeyDown={e=>e.key==="Enter"&&postTrash()} placeholder="Talk your trash... or your motivation 😤" style={{...C.inp,flex:1,fontSize:13}}/>
+                    <button style={{...C.btn("#1d4ed8"),padding:"8px 16px",fontSize:13}} onClick={postTrash}>Post</button>
+                  </div>
+                </div>
+                <div style={{display:"flex",flexDirection:"column",gap:10}}>
+                  {trashTalk.map(msg=>(
+                    <div key={msg.id} style={{background:"#080f1e",borderRadius:12,padding:"12px 14px",border:"1px solid #0f2240"}}>
+                      <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:6}}>
+                        <div style={{width:30,height:30,borderRadius:"50%",background:msg.isYou||msg.from===username?"linear-gradient(135deg,#1d4ed8,#4ade80)":"linear-gradient(135deg,#1a3356,#0f2240)",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:800,fontSize:11,flexShrink:0}}>{msg.avatar}</div>
+                        <div style={{flex:1}}><span style={{fontSize:13,fontWeight:700,color:msg.from===username?"#4ade80":"#e2e8f0"}}>{msg.from}</span>{msg.from===username&&<span style={{fontSize:10,color:"#4ade80",marginLeft:6,fontWeight:600}}>you</span>}</div>
+                        <span style={{fontSize:11,color:"#475569"}}>{msg.time}</span>
+                      </div>
+                      <div style={{fontSize:13,color:"#94a3b8",lineHeight:1.5,marginBottom:8}}>{msg.text}</div>
+                      <button onClick={()=>setTrashTalk(p=>p.map(m=>m.id===msg.id?{...m,likes:m.likes+1}:m))} style={{background:"transparent",border:"1px solid #1a3356",color:"#64748b",borderRadius:8,padding:"3px 10px",fontSize:11,cursor:"pointer",fontWeight:600}}>👍 {msg.likes}</button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* INVITE MODAL */}
+              {showInviteModal&&(
+                <div style={C.overlay} onClick={()=>setShowInviteModal(false)}>
+                  <div style={{...C.mbox,width:440}} onClick={e=>e.stopPropagation()}>
+                    <div style={{fontSize:28,marginBottom:8}}>🏆</div>
+                    <div style={{fontSize:18,fontWeight:800,marginBottom:4}}>Invite Friends to Your League</div>
+                    <div style={{fontSize:13,color:"#64748b",marginBottom:20,lineHeight:1.6}}>Friends join and track their own private Life Score. Only scores and streak highlights are visible to the group — no personal finance or health data is ever shared.</div>
+                    <div style={{marginBottom:14}}>
+                      <div style={{fontSize:12,color:"#4a7ab5",fontWeight:700,marginBottom:8}}>League Code</div>
+                      <div style={{display:"flex",gap:8}}>
+                        <div style={{...C.inp,flex:1,fontSize:20,fontWeight:900,textAlign:"center",letterSpacing:4,color:"#4ade80",userSelect:"all"}}>{LEAGUE_CODE}</div>
+                        <button style={{...C.btn("#059669"),padding:"8px 16px"}} onClick={()=>copyToClipboard("code")}>{inviteCopied==="code"?"✓ Copied!":"Copy"}</button>
+                      </div>
+                    </div>
+                    <div style={{marginBottom:20}}>
+                      <div style={{fontSize:12,color:"#4a7ab5",fontWeight:700,marginBottom:8}}>Invite Link</div>
+                      <div style={{display:"flex",gap:8}}>
+                        <div style={{...C.inp,flex:1,fontSize:12,color:"#60a5fa",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{LEAGUE_LINK}</div>
+                        <button style={{...C.btn("#1d4ed8"),padding:"8px 16px"}} onClick={()=>copyToClipboard("link")}>{inviteCopied==="link"?"✓ Copied!":"Copy"}</button>
+                      </div>
+                    </div>
+                    <div style={{background:"rgba(74,222,128,0.07)",border:"1px solid rgba(74,222,128,0.2)",borderRadius:10,padding:"12px 14px",fontSize:12,color:"#64748b",marginBottom:20,lineHeight:1.6}}>
+                      🔒 <strong style={{color:"#94a3b8"}}>Privacy guarantee:</strong> Debt, income, credit score, and health data are never visible to other players. Only your Life Score and streak highlights are shared.
+                    </div>
+                    <button style={{...C.ghost,width:"100%",padding:"10px"}} onClick={()=>setShowInviteModal(false)}>Close</button>
+                  </div>
+                </div>
+              )}
+
+            </div>
+          );
+        })()}
 
         {/* ── AI CHAT ── */}
         {tab==="ai"&&(
