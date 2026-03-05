@@ -400,6 +400,41 @@ const getLevel = (xp) => [...LEVELS].reverse().find(l => xp >= l.minXP) || LEVEL
 const getNextLevel = (xp) => LEVELS.find(l => l.minXP > xp) || null;
 const XP_ACTIONS = { login:15, habit:10, mood:5, weight:5, supplement:3 };
 
+
+// ─── GOAL CARD (reusable across tabs) ────────────────────────────────────────
+function GoalCard({ g, onUpdate, onDelete, autoValue, autoLabel }) {
+  const pct = g.target_value > 0 ? Math.min(100, Math.round(((autoValue ?? g.current_value) / g.target_value) * 100)) : 0;
+  const daysLeft = g.deadline ? Math.ceil((new Date(g.deadline) - new Date()) / (1000*60*60*24)) : null;
+  const catColors = { fitness:"#4ade80", finance:"#60a5fa", health:"#f97316", personal:"#a78bfa" };
+  const col = catColors[g.category] || "#818cf8";
+  const displayVal = autoValue ?? g.current_value;
+  return (
+    <div style={{background:"#080f1e",border:`1px solid ${col}22`,borderRadius:14,padding:"16px 18px",borderLeft:`3px solid ${col}`}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:10}}>
+        <div style={{flex:1}}>
+          <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:4,flexWrap:"wrap"}}>
+            <span style={{fontSize:11,fontWeight:700,color:col,background:`${col}18`,border:`1px solid ${col}30`,borderRadius:6,padding:"2px 8px",textTransform:"uppercase"}}>{g.category}</span>
+            {autoLabel && <span style={{fontSize:10,color:"#4ade80",fontWeight:600}}>⚡ auto-tracking</span>}
+            {daysLeft !== null && <span style={{fontSize:11,color:daysLeft<=7?"#f87171":daysLeft<=14?"#facc15":"#475569"}}>{daysLeft > 0 ? `${daysLeft}d left` : "⚠ Overdue"}</span>}
+          </div>
+          <div style={{fontSize:15,fontWeight:800}}>{g.title}</div>
+        </div>
+        <div style={{display:"flex",gap:6,flexShrink:0}}>
+          {!autoLabel && <button onClick={()=>onUpdate(g)} style={{background:`${col}18`,border:`1px solid ${col}44`,color:col,borderRadius:8,padding:"4px 10px",fontSize:11,cursor:"pointer",fontWeight:700}}>Update</button>}
+          <button onClick={()=>onDelete(g.id)} style={{background:"transparent",border:"1px solid #1a3356",color:"#475569",borderRadius:8,padding:"4px 8px",fontSize:11,cursor:"pointer"}}>×</button>
+        </div>
+      </div>
+      <div style={{background:"#1e293b",borderRadius:99,height:8,overflow:"hidden",marginBottom:6}}>
+        <div style={{width:`${pct}%`,background:`linear-gradient(90deg,${col},${col}88)`,height:"100%",borderRadius:99,transition:"width 0.8s"}}/>
+      </div>
+      <div style={{display:"flex",justifyContent:"space-between",fontSize:12}}>
+        <span style={{color:"#64748b"}}>{displayVal.toLocaleString()} / {g.target_value.toLocaleString()} {g.unit}</span>
+        <span style={{fontWeight:800,color:pct>=100?"#4ade80":col}}>{pct>=100?"✅ Complete!":pct+"%"}</span>
+      </div>
+    </div>
+  );
+}
+
 export default function LifeSync({ user, onSignOut, isDemo = false }) {
   const navigate = useNavigate();
   const DEMO = isDemo ? PICKED_DEMO : DEMO_PROFILES[0];
@@ -477,6 +512,33 @@ export default function LifeSync({ user, onSignOut, isDemo = false }) {
   const [showUpdateGoal, setShowUpdateGoal] = useState(null); // goal object
   const [goalUpdateVal, setGoalUpdateVal] = useState("");
   const [newGoal, setNewGoal] = useState({ title:"", category:"fitness", current_value:"0", target_value:"", unit:"", deadline:"" });
+
+  // Auto-link goals to real data
+  const getGoalAutoValue = (g) => {
+    // Finance goals → use real savings
+    if (g.category === "finance" && (g.unit==="$" || g.title.toLowerCase().includes("save"))) {
+      return { value: savings, label: "from your savings" };
+    }
+    // Finance debt payoff → use total debt reduction
+    if (g.category === "finance" && g.title.toLowerCase().includes("debt")) {
+      return null; // manual for now
+    }
+    // Fitness/health goals with "lbs" → use weight log
+    if ((g.category==="fitness"||g.category==="health") && g.unit==="lbs" && weightLog.length > 0) {
+      const startW = weightLog[0]?.weight;
+      const currW = weightLog[weightLog.length-1]?.weight;
+      if (startW && currW) {
+        const lost = parseFloat((startW - currW).toFixed(1));
+        return { value: Math.max(0, lost), label: "from weight log" };
+      }
+    }
+    // Fitness goals → link to habit streak (gym, cardio, run)
+    if (g.category==="fitness" && g.unit==="days") {
+      const fitnessHabit = habits.find(h => ["gym","cardio","run","walk","steps"].includes(h.id) && h.active);
+      if (fitnessHabit) return { value: fitnessHabit.streak, label: `from ${HABIT_TEMPLATES.find(t=>t.id===fitnessHabit.id)?.label||"habit"} streak` };
+    }
+    return null;
+  };
   const [showLogWeight, setShowLogWeight] = useState(false);
   const [aiInput, setAiInput] = useState("");
   const [msgs, setMsgs] = useState([
@@ -1556,6 +1618,22 @@ export default function LifeSync({ user, onSignOut, isDemo = false }) {
                 </div>
               )}
             </div>
+
+            {/* Finance Goals */}
+            {goals.filter(g => g.category === "finance" && !g.completed).length > 0 && (
+              <div style={C.card}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
+                  <div style={C.cTitle}>🎯 Finance Goals</div>
+                  <button onClick={()=>setShowAddGoal(true)} style={{...C.ghost,fontSize:11,padding:"4px 12px"}}>+ Add</button>
+                </div>
+                <div style={{display:"flex",flexDirection:"column",gap:10}}>
+                  {goals.filter(g => g.category === "finance" && !g.completed).map(g => {
+                    const auto = getGoalAutoValue(g);
+                    return <GoalCard key={g.id} g={g} onUpdate={(g)=>{setShowUpdateGoal(g);setGoalUpdateVal(String(g.current_value));}} onDelete={deleteGoal} autoValue={auto?.value} autoLabel={auto?.label}/>;
+                  })}
+                </div>
+              </div>
+            )}
           </div>
         )}
 
@@ -1717,6 +1795,33 @@ export default function LifeSync({ user, onSignOut, isDemo = false }) {
                 )}
               </div>
             </div>
+
+            {/* Health & Fitness Goals */}
+            {goals.filter(g => (g.category === "fitness" || g.category === "health") && !g.completed).length === 0 && habits.filter(h=>h.active).length > 0 && (
+              <div style={{...C.card,display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,padding:"14px 18px"}}>
+                <div style={{fontSize:13,color:"#475569"}}>🎯 Turn your habits into goals — track a milestone like "Run 30 days straight" or "Lose 10 lbs"</div>
+                <button onClick={()=>{ setNewGoal(p=>({...p,category:"fitness"})); setShowAddGoal(true); }} style={{...C.btn("#4ade80"),fontSize:12,padding:"6px 14px",flexShrink:0}}>+ Set Goal</button>
+              </div>
+            )}
+            {goals.filter(g => (g.category === "fitness" || g.category === "health") && !g.completed).length > 0 && (
+              <div style={C.card}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
+                  <div style={C.cTitle}>🎯 Health & Fitness Goals</div>
+                  <button onClick={()=>{ setNewGoal(p=>({...p,category:"fitness"})); setShowAddGoal(true); }} style={{...C.ghost,fontSize:11,padding:"4px 12px"}}>+ Add</button>
+                </div>
+                <div style={{display:"flex",flexDirection:"column",gap:10}}>
+                  {goals.filter(g => (g.category === "fitness" || g.category === "health") && !g.completed).map(g => {
+                    const auto = getGoalAutoValue(g);
+                    return <GoalCard key={g.id} g={g} onUpdate={(g)=>{setShowUpdateGoal(g);setGoalUpdateVal(String(g.current_value));}} onDelete={deleteGoal} autoValue={auto?.value} autoLabel={auto?.label}/>;
+                  })}
+                </div>
+                {goals.filter(g=>(g.category==="fitness"||g.category==="health")&&!g.completed).some(g=>getGoalAutoValue(g)) && (
+                  <div style={{marginTop:12,padding:"10px 14px",background:"rgba(74,222,128,0.05)",border:"1px solid rgba(74,222,128,0.15)",borderRadius:10,fontSize:12,color:"#64748b"}}>
+                    ⚡ <strong style={{color:"#4ade80"}}>Auto-tracking</strong> — goals marked with ⚡ update automatically from your habits and weight log. No manual updates needed.
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         )}
 
@@ -2021,7 +2126,7 @@ export default function LifeSync({ user, onSignOut, isDemo = false }) {
             Math.round(10 * (bs.current_weight * 0.453592) + 6.25 * (bs.height_in * 2.54) - 5 * bs.age + 5) : null;
           const goalLbs = bs.goal_weight && bs.current_weight ? Math.abs(bs.current_weight - bs.goal_weight).toFixed(1) : null;
           const goalDir = bs.goal_weight && bs.current_weight ? (bs.goal_weight < bs.current_weight ? "lose" : "gain") : null;
-          const weeklyChange = tdee && goalDir ? (goalDir==="lose" ? tdee - 500 : tdee + 300) : null;
+          const weeklyChange = tdee && goalDir ? (goalDir==="lose" ? tdee - 500 : tdee + 300) : null; // moderate deficit/surplus
           const goalTypes = { fat_loss:"🔥 Fat Loss", muscle_gain:"💪 Muscle Gain", general_fitness:"🏃 General Fitness", maintenance:"⚖️ Maintenance", custom:"🎯 Custom Goal" };
           const wLogSorted = [...weightLog].sort((a,b) => new Date(a.logged_at)-new Date(b.logged_at));
           const startWeight = wLogSorted[0]?.weight || bs.current_weight;
@@ -2223,7 +2328,7 @@ export default function LifeSync({ user, onSignOut, isDemo = false }) {
                     <>
                       <div style={{display:"flex",justifyContent:"space-between",fontSize:13,marginBottom:6}}>
                         <span style={{color:"#64748b"}}>Need to {goalDir} <strong style={{color:"#e2e8f0"}}>{goalLbs} lbs</strong></span>
-                        {weeklyChange && <span style={{color:"#4ade80"}}>~{weeklyChange.toLocaleString()} cal/day target</span>}
+                        {weeklyChange && <span style={{color:"#4ade80"}}>~{Math.max(weeklyChange, 1600).toLocaleString()} cal/day target</span>}
                       </div>
                       <div style={{background:"#1e293b",borderRadius:99,height:10,overflow:"hidden",marginBottom:8}}>
                         {(() => {
@@ -2240,17 +2345,38 @@ export default function LifeSync({ user, onSignOut, isDemo = false }) {
                     </>
                   )}
                   {(bs.goal_type==="fat_loss"||bs.goal_type==="muscle_gain"||bs.goal_type==="general_fitness") && tdee && (
-                    <div style={{marginTop:14,display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10}}>
-                      {[
-                        ["Maintenance",tdee,"#64748b"],
-                        [bs.goal_type==="muscle_gain"?"Bulk":"Cut",bs.goal_type==="muscle_gain"?tdee+300:tdee-500,"#818cf8"],
-                        [bs.goal_type==="muscle_gain"?"Aggressive Bulk":"Aggressive Cut",bs.goal_type==="muscle_gain"?tdee+500:tdee-750,"#6366f1"],
-                      ].map(([label,cal,color])=>(
-                        <div key={label} style={{background:"#080f1e",border:"1px solid #1a3356",borderRadius:10,padding:"10px 12px",textAlign:"center"}}>
-                          <div style={{fontSize:16,fontWeight:800,color}}>{cal.toLocaleString()}</div>
-                          <div style={{fontSize:10,color:"#475569",marginTop:2}}>{label}</div>
+                    <div style={{marginTop:14}}>
+                      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10,marginBottom:10}}>
+                        {bs.goal_type==="muscle_gain" ? [
+                          ["Maintenance", tdee,      "#64748b", "maintain weight"],
+                          ["Lean Bulk",   tdee+200,  "#818cf8", "~0.25 lb/week gain"],
+                          ["Bulk",        tdee+400,  "#6366f1", "~0.5 lb/week gain"],
+                        ] : bs.goal_type==="fat_loss" ? [
+                          ["Maintenance", tdee,      "#64748b", "maintain weight"],
+                          ["Mild Cut",    Math.max(tdee-300, 1600), "#facc15", "~0.5 lb/week loss"],
+                          ["Moderate Cut",Math.max(tdee-500, 1600), "#818cf8", "~1 lb/week loss"],
+                        ] : [
+                          ["Light",       tdee-200,  "#64748b", "slight deficit"],
+                          ["Maintenance", tdee,      "#4ade80", "maintain weight"],
+                          ["Active",      tdee+200,  "#818cf8", "slight surplus"],
+                        ]}.map(([label,cal,color,desc])=>(
+                          <div key={label} style={{background:"#080f1e",border:"1px solid #1a3356",borderRadius:10,padding:"10px 12px",textAlign:"center"}}>
+                            <div style={{fontSize:16,fontWeight:800,color}}>{cal.toLocaleString()}</div>
+                            <div style={{fontSize:11,color:"#94a3b8",marginTop:2,fontWeight:600}}>{label}</div>
+                            <div style={{fontSize:10,color:"#475569",marginTop:1}}>{desc}</div>
+                          </div>
+                        ))}
+                      </div>
+                      {bs.goal_type==="fat_loss" && (
+                        <div style={{background:"rgba(250,204,21,0.07)",border:"1px solid rgba(250,204,21,0.2)",borderRadius:10,padding:"10px 14px",fontSize:12,color:"#94a3b8",lineHeight:1.6}}>
+                          ⚠️ <strong style={{color:"#facc15"}}>Never go below 1,600 cal/day</strong> without medical supervision. Aggressive cuts cause muscle loss and metabolic slowdown. Slow and steady wins.
                         </div>
-                      ))}
+                      )}
+                      {bs.goal_type==="muscle_gain" && (
+                        <div style={{background:"rgba(129,140,248,0.07)",border:"1px solid rgba(129,140,248,0.2)",borderRadius:10,padding:"10px 14px",fontSize:12,color:"#94a3b8",lineHeight:1.6}}>
+                          💡 <strong style={{color:"#818cf8"}}>Lean bulking</strong> minimizes fat gain. A 200–400 cal surplus with consistent training is the sweet spot for most people.
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
