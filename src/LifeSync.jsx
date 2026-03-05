@@ -524,20 +524,13 @@ export default function LifeSync({ user, onSignOut, isDemo = false }) {
   // ── SUPABASE: Save finances ────────────────────────────────────────────────
   const saveFinances = async (income, expenses, sav) => {
     if (!user) return;
-    const inc = parseFloat(income)||0;
-    const exp = parseFloat(expenses)||0;
-    const savAmt = parseFloat(sav)||0;
-    const { error } = await supabase.from("finances").upsert(
-      { user_id: user.id, monthly_income: inc, monthly_expenses: exp, savings: savAmt, updated_at: new Date().toISOString() },
-      { onConflict: "user_id" }
-    );
-    if (!error) {
-      setMonthlyIncome(inc);
-      setMonthlyExpenses(exp);
-      setSavings(savAmt);
-    } else {
-      console.error("saveFinances error:", error);
-    }
+    const { data: existing } = await supabase.from("finances").select("id").eq("user_id", user.id).single().catch(()=>({data:null}));
+    const payload = { monthly_income: parseFloat(income)||0, monthly_expenses: parseFloat(expenses)||0, savings: parseFloat(sav)||0, updated_at: new Date().toISOString() };
+    if (existing) { await supabase.from("finances").update(payload).eq("id", existing.id); }
+    else { await supabase.from("finances").insert([{ user_id: user.id, ...payload }]); }
+    setMonthlyIncome(parseFloat(income)||0);
+    setMonthlyExpenses(parseFloat(expenses)||0);
+    setSavings(parseFloat(sav)||0);
   };
 
   const addDebt = async () => {
@@ -591,10 +584,12 @@ export default function LifeSync({ user, onSignOut, isDemo = false }) {
   // ── SUPABASE: Save credit score ─────────────────────────────────────────────
   const saveCreditScore = async (score) => {
     if (!user) return;
-    await supabase.from("finances").upsert(
-      { user_id: user.id, credit_score: score, updated_at: new Date().toISOString() },
-      { onConflict: "user_id" }
-    );
+    const { data: existing } = await supabase.from("finances").select("id").eq("user_id", user.id).single();
+    if (existing) {
+      await supabase.from("finances").update({ credit_score: score, updated_at: new Date().toISOString() }).eq("id", existing.id);
+    } else {
+      await supabase.from("finances").insert([{ user_id: user.id, credit_score: score }]);
+    }
   };
 
   // ── SUPABASE: Save life score history weekly ────────────────────────────────
@@ -1242,30 +1237,13 @@ export default function LifeSync({ user, onSignOut, isDemo = false }) {
           <div style={{display:"flex",flexDirection:"column",gap:18}}>
             <div style={C.g()}>
               <div style={C.card}>
-                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
-                  <div style={C.cTitle}>Preventive Care Checklist</div>
-                  <button style={{...C.btn("#6366f1"),fontSize:11,padding:"4px 12px"}} onClick={()=>setShowAddCheckup(true)}>+ Add</button>
-                </div>
-                {checkups.length===0?(
-                  <div style={{textAlign:"center",padding:"20px 0"}}>
-                    <div style={{fontSize:28,marginBottom:8}}>🩺</div>
-                    <div style={{fontSize:13,color:"#475569",marginBottom:10}}>No checkups added yet.</div>
-                    <button style={{...C.btn("#6366f1"),fontSize:12}} onClick={()=>setShowAddCheckup(true)}>+ Add Checkup</button>
+                <div style={C.cTitle}>Preventive Care Checklist</div>
+                {[["Annual Physical","8 months ago",true],["Dental Cleaning","14 months ago",true],["Eye Exam","1 year ago",false],["Blood Pressure Check","3 months ago",false]].map(([name,last,urgent])=>(
+                  <div key={name} style={{background:urgent?"rgba(248,113,113,0.07)":"rgba(96,165,250,0.07)",border:`1px solid ${urgent?"rgba(248,113,113,0.3)":"rgba(96,165,250,0.2)"}`,borderRadius:10,padding:"10px 14px",marginBottom:8,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                    <div><div style={{fontSize:13,fontWeight:600}}>{name}</div><div style={{fontSize:11,color:"#64748b"}}>Last: {last}</div></div>
+                    <div style={{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:6}}><Tag status={urgent?"overdue":"upcoming"}/><button onClick={()=>setTab("ai")} style={C.ghost}>Get help →</button></div>
                   </div>
-                ):(
-                  checkups.map(ch=>(
-                    <div key={ch.id} style={{background:ch.urgent?"rgba(248,113,113,0.07)":"rgba(96,165,250,0.07)",border:`1px solid ${ch.urgent?"rgba(248,113,113,0.3)":"rgba(96,165,250,0.2)"}`,borderRadius:10,padding:"10px 14px",marginBottom:8,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-                      <div>
-                        <div style={{fontSize:13,fontWeight:600}}>{ch.name}</div>
-                        {ch.last_date&&<div style={{fontSize:11,color:"#64748b"}}>Last: {ch.last_date}</div>}
-                      </div>
-                      <div style={{display:"flex",alignItems:"center",gap:8}}>
-                        <Tag status={ch.urgent?"overdue":"upcoming"}/>
-                        <button onClick={()=>removeCheckup(ch.id)} style={{background:"none",border:"none",color:"#334155",cursor:"pointer",fontSize:16}}>×</button>
-                      </div>
-                    </div>
-                  ))
-                )}
+                ))}
               </div>
               <div style={C.card}>
                 <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
