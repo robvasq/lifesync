@@ -863,14 +863,26 @@ export default function LifeSync({ user, onSignOut, isDemo = false }) {
                 <button style={{...C.btn(),marginTop:14,width:"100%",fontSize:13}} onClick={()=>setTab("habits")}>View All Habits →</button>
               </div>
               <div style={C.card}>
-                <div style={C.cTitle}>Financial Snapshot</div>
-                <div style={{display:"flex",justifyContent:"space-between",marginBottom:18}}>
-                  {[["Income","$4,200","#4ade80"],["Expenses","$3,100","#f87171"],["Saved","$1,100","#60a5fa"]].map(([l,v,c])=>(
-                    <div key={l} style={{textAlign:"center"}}><div style={{fontSize:18,fontWeight:800,color:c}}>{v}</div><div style={{fontSize:11,color:"#64748b"}}>{l}/mo</div></div>
-                  ))}
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
+                  <div style={C.cTitle}>Financial Snapshot</div>
+                  <button style={{...C.ghost,padding:"4px 12px",fontSize:11}} onClick={openEditFinances}>✏ Edit</button>
                 </div>
-                <div style={{fontSize:12,color:"#64748b",marginBottom:4,display:"flex",justifyContent:"space-between"}}><span>Emergency Fund</span><span style={{color:"#e2e8f0"}}>$2,340 / $5,000</span></div>
-                <Bar value={2340} max={5000} color="#60a5fa"/>
+                {monthlyIncome===0&&monthlyExpenses===0?(
+                  <div style={{textAlign:"center",padding:"20px 0"}}>
+                    <div style={{fontSize:13,color:"#475569",marginBottom:10}}>No financial data yet.</div>
+                    <button style={{...C.btn("#6366f1"),fontSize:12}} onClick={openEditFinances}>+ Add Your Numbers</button>
+                  </div>
+                ):(
+                  <>
+                    <div style={{display:"flex",justifyContent:"space-between",marginBottom:18}}>
+                      {[["Income",`$${monthlyIncome.toLocaleString()}`,"#4ade80"],["Expenses",`$${monthlyExpenses.toLocaleString()}`,"#f87171"],["Saved",`$${Math.max(0,monthlyIncome-monthlyExpenses).toLocaleString()}`,"#60a5fa"]].map(([l,v,col])=>(
+                        <div key={l} style={{textAlign:"center"}}><div style={{fontSize:18,fontWeight:800,color:col}}>{v}</div><div style={{fontSize:11,color:"#64748b"}}>{l}/mo</div></div>
+                      ))}
+                    </div>
+                    <div style={{fontSize:12,color:"#64748b",marginBottom:4,display:"flex",justifyContent:"space-between"}}><span>Savings</span><span style={{color:"#e2e8f0"}}>${savings.toLocaleString()}</span></div>
+                    <Bar value={savings} max={Math.max(savings*2,5000)} color="#60a5fa"/>
+                  </>
+                )}
               </div>
             </div>
             <div style={C.card}>
@@ -987,13 +999,35 @@ export default function LifeSync({ user, onSignOut, isDemo = false }) {
             {/* TOP ROW */}
             <div style={C.g()}>
               <div style={C.card}>
-                <div style={C.cTitle}>Monthly Budget</div>
-                {[["Housing",1250,"#60a5fa"],["Food & Groceries",480,"#4ade80"],["Transportation",410,"#facc15"],["Health & Insurance",320,"#f87171"],["Entertainment",180,"#a78bfa"],["Other",460,"#94a3b8"]].map(([cat,amt,color])=>(
-                  <div key={cat} style={{marginBottom:14}}>
-                    <div style={{display:"flex",justifyContent:"space-between",marginBottom:4,fontSize:13}}><span style={{color:"#94a3b8"}}>{cat}</span><span style={{fontWeight:700}}>${amt}</span></div>
-                    <Bar value={amt} max={Math.max(monthlyIncome,1)} color={color} h={6}/>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
+                  <div style={C.cTitle}>Monthly Budget</div>
+                  <button style={{...C.ghost,padding:"4px 12px",fontSize:11}} onClick={openEditFinances}>✏ Edit</button>
+                </div>
+                {monthlyIncome===0&&monthlyExpenses===0?(
+                  <div style={{textAlign:"center",padding:"20px 0"}}>
+                    <div style={{fontSize:13,color:"#475569",marginBottom:10}}>Add your income & expenses to see your budget.</div>
+                    <button style={{...C.btn("#6366f1"),fontSize:12}} onClick={openEditFinances}>+ Add Budget Info</button>
                   </div>
-                ))}
+                ):(
+                  <>
+                    <div style={{marginBottom:14}}>
+                      <div style={{display:"flex",justifyContent:"space-between",marginBottom:4,fontSize:13}}><span style={{color:"#94a3b8"}}>Monthly Income</span><span style={{fontWeight:700,color:"#4ade80"}}>${monthlyIncome.toLocaleString()}</span></div>
+                      <Bar value={monthlyIncome} max={Math.max(monthlyIncome,1)} color="#4ade80" h={6}/>
+                    </div>
+                    <div style={{marginBottom:14}}>
+                      <div style={{display:"flex",justifyContent:"space-between",marginBottom:4,fontSize:13}}><span style={{color:"#94a3b8"}}>Monthly Expenses</span><span style={{fontWeight:700,color:"#f87171"}}>${monthlyExpenses.toLocaleString()}</span></div>
+                      <Bar value={monthlyExpenses} max={Math.max(monthlyIncome,1)} color="#f87171" h={6}/>
+                    </div>
+                    <div style={{marginBottom:4}}>
+                      <div style={{display:"flex",justifyContent:"space-between",marginBottom:4,fontSize:13}}><span style={{color:"#94a3b8"}}>Savings</span><span style={{fontWeight:700,color:"#60a5fa"}}>${savings.toLocaleString()}</span></div>
+                      <Bar value={savings} max={Math.max(monthlyIncome,1)} color="#60a5fa" h={6}/>
+                    </div>
+                    <div style={{marginTop:12,padding:"10px 14px",background:"#080f1e",borderRadius:10,display:"flex",justifyContent:"space-between",fontSize:13}}>
+                      <span style={{color:"#64748b"}}>Left after expenses</span>
+                      <span style={{fontWeight:800,color:monthlyIncome-monthlyExpenses>=0?"#4ade80":"#f87171"}}>${(monthlyIncome-monthlyExpenses).toLocaleString()}</span>
+                    </div>
+                  </>
+                )}
               </div>
               <div style={C.card}>
                 <div style={C.cTitle}>Debt Overview</div>
@@ -1212,13 +1246,34 @@ export default function LifeSync({ user, onSignOut, isDemo = false }) {
                 ))}
               </div>
               <div style={C.card}>
-                <div style={C.cTitle}>Medication Tracker</div>
-                {[["Lisinopril 10mg","Daily",8,"#4ade80"],["Vitamin D3","Daily",22,"#60a5fa"],["Metformin 500mg","Twice daily",3,"#f87171"]].map(([name,sched,days,color])=>(
-                  <div key={name} style={{background:"#0a1929",border:"1px solid #1a3356",borderRadius:12,padding:"12px 16px",marginBottom:10}}>
-                    <div style={{display:"flex",justifyContent:"space-between"}}><div><div style={{fontSize:14,fontWeight:700}}>{name}</div><div style={{fontSize:12,color:"#64748b"}}>{sched}</div></div><div style={{textAlign:"right"}}><div style={{fontSize:11,color:"#64748b"}}>Refill in</div><div style={{fontSize:18,fontWeight:800,color}}>{days}d</div></div></div>
-                    <div style={{marginTop:10}}><Bar value={days} max={30} color={color} h={5}/></div>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
+                  <div style={C.cTitle}>Medication Tracker</div>
+                  <button style={{...C.btn("#6366f1"),fontSize:11,padding:"4px 12px"}} onClick={()=>setShowAddMed(true)}>+ Add</button>
+                </div>
+                {medications.length===0?(
+                  <div style={{textAlign:"center",padding:"20px 0"}}>
+                    <div style={{fontSize:28,marginBottom:8}}>💊</div>
+                    <div style={{fontSize:13,color:"#475569",marginBottom:10}}>No medications added yet.</div>
+                    <button style={{...C.btn("#6366f1"),fontSize:12}} onClick={()=>setShowAddMed(true)}>+ Add Medication</button>
                   </div>
-                ))}
+                ):(
+                  medications.map(m=>{
+                    const days = m.refill_days||30;
+                    const color = days<=7?"#f87171":days<=14?"#facc15":"#4ade80";
+                    return(
+                      <div key={m.id} style={{background:"#0a1929",border:"1px solid #1a3356",borderRadius:12,padding:"12px 16px",marginBottom:10}}>
+                        <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
+                          <div><div style={{fontSize:14,fontWeight:700}}>{m.name}</div><div style={{fontSize:12,color:"#64748b"}}>{m.dose} · {m.schedule}</div></div>
+                          <div style={{display:"flex",alignItems:"center",gap:8}}>
+                            <div style={{textAlign:"right"}}><div style={{fontSize:11,color:"#64748b"}}>Refill in</div><div style={{fontSize:18,fontWeight:800,color}}>{days}d</div></div>
+                            <button onClick={()=>removeMed(m.id)} style={{background:"none",border:"none",color:"#334155",cursor:"pointer",fontSize:16,padding:"0 4px"}}>×</button>
+                          </div>
+                        </div>
+                        <div style={{marginTop:10}}><Bar value={days} max={30} color={color} h={5}/></div>
+                      </div>
+                    );
+                  })
+                )}
               </div>
               <div style={C.card}>
                 <div style={C.cTitle}>Symptom Checker</div>
