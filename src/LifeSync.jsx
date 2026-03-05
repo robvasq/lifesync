@@ -377,6 +377,29 @@ const calcCreditFactors = (debts, habits, monthlyIncome) => {
   ];
 };
 
+// ─── GAMIFICATION ────────────────────────────────────────────────────────────
+const LEVELS = [
+  { name:"Rookie",   minXP:0,    color:"#64748b", icon:"⚪" },
+  { name:"Hustler",  minXP:500,  color:"#60a5fa", icon:"🔵" },
+  { name:"Pro",      minXP:1500, color:"#a78bfa", icon:"🟣" },
+  { name:"Elite",    minXP:3000, color:"#facc15", icon:"🟡" },
+  { name:"Legend",   minXP:6000, color:"#4ade80", icon:"🟢" },
+];
+const BADGES = [
+  { id:"streak7",   label:"7-Day Streak",    icon:"🔥", desc:"Log 7 days in a row" },
+  { id:"streak30",  label:"30-Day Streak",   icon:"⚡", desc:"Log 30 days in a row" },
+  { id:"streak100", label:"100-Day Streak",  icon:"💎", desc:"Log 100 days in a row" },
+  { id:"hustler",   label:"Hustler",         icon:"🔵", desc:"Reached Hustler level" },
+  { id:"pro",       label:"Pro",             icon:"🟣", desc:"Reached Pro level" },
+  { id:"elite",     label:"Elite",           icon:"🟡", desc:"Reached Elite level" },
+  { id:"legend",    label:"Legend",          icon:"🟢", desc:"Reached Legend level" },
+  { id:"first_log", label:"First Log",       icon:"✅", desc:"Logged your first activity" },
+  { id:"week1",     label:"Week One",        icon:"📅", desc:"Used LifeSync for 7 days" },
+];
+const getLevel = (xp) => [...LEVELS].reverse().find(l => xp >= l.minXP) || LEVELS[0];
+const getNextLevel = (xp) => LEVELS.find(l => l.minXP > xp) || null;
+const XP_ACTIONS = { login:15, habit:10, mood:5, weight:5, supplement:3 };
+
 export default function LifeSync({ user, onSignOut, isDemo = false }) {
   const navigate = useNavigate();
   const DEMO = isDemo ? PICKED_DEMO : DEMO_PROFILES[0];
@@ -437,6 +460,11 @@ export default function LifeSync({ user, onSignOut, isDemo = false }) {
   const [newSupp, setNewSupp] = useState({ name:"", dose:"", timing:"Morning", icon:"💊" });
   const [suppJustLogged, setSuppJustLogged] = useState(null);
   const [username, setUsername] = useState(isDemo ? DEMO.username : "You");
+  // ── GAMIFICATION STATE ──
+  const [progress, setProgress] = useState({ xp:0, level:"Rookie", daily_streak:0, longest_streak:0, last_active_date:null, badges:[] });
+  const [xpPopup, setXpPopup] = useState(null); // { amount, reason }
+  const [levelUpPopup, setLevelUpPopup] = useState(null);
+
   // ── BODY STATS & PROFILE ──
   const [bodyStats, setBodyStats] = useState({ age:"", height_in:"", current_weight:"", goal_weight:"", goal_type:"fat_loss", goal_date:"", goal_label:"" });
   const [weightLog, setWeightLog] = useState([]);
@@ -468,7 +496,8 @@ export default function LifeSync({ user, onSignOut, isDemo = false }) {
     overdueCheckups: checkups.filter(ch => ch.urgent).length,
     lowRefillMeds: medications.filter(m => (m.refill_days||30) <= 7).length,
   };
-  const lifeScore = calcLifeScore(habits, financeData);
+  const streakBonus = Math.min(5, Math.floor((progress.daily_streak||0) / 7)); // +1 per 7-day streak, max +5
+  const lifeScore = Math.min(100, calcLifeScore(habits, financeData) + streakBonus);
   const myLeagueScore = 50 + Math.max(0, lifeScore - 50);
   const scoreBreakdown = calcLifeScoreBreakdown(habits, financeData);
 
@@ -549,6 +578,12 @@ export default function LifeSync({ user, onSignOut, isDemo = false }) {
       const { data: wlData } = await supabase.from("weight_log").select("*").eq("user_id", user.id).order("logged_at", { ascending: true });
       if (wlData) setWeightLog(wlData);
 
+      // Load user progress
+      const { data: progData } = await supabase.from("user_progress").select("*").eq("user_id", user.id).maybeSingle();
+      if (progData) {
+        setProgress({ ...progData, badges: progData.badges || [] });
+      }
+
       // Load profile username
       const { data: profile } = await supabase
         .from("profiles")
@@ -560,14 +595,14 @@ export default function LifeSync({ user, onSignOut, isDemo = false }) {
     loadData();
   }, [user]);
 
+  // Award daily login XP whenever progress loads and it's a new day
+  useEffect(() => { if (user && progress.xp !== undefined) awardDailyLogin(); }, [progress.last_active_date, user]);
+
   // ── SUPABASE: Save mood when logged ────────────────────────────────────────
   const saveMood = async (score, note) => {
     if (!user) return;
-    await supabase.from("moods").insert([{
-      user_id: user.id,
-      score,
-      note: note || null,
-    }]);
+    await supabase.from("moods").insert([{ user_id: user.id, score, note: note || null }]);
+    awardXP("mood");
   };
 
   // ── SUPABASE: Save habit log ────────────────────────────────────────────────
@@ -584,6 +619,65 @@ export default function LifeSync({ user, onSignOut, isDemo = false }) {
     } else {
       await supabase.from("habits").insert([{ user_id: user.id, name: habitId, streak, completed: true }]);
     }
+    awardXP("habit");
+  };
+
+  // ── GAMIFICATION: Award XP + update streak ────────────────────────────────
+  const awardXP = async (action) => {
+    if (!user || isDemo) return;
+    const amount = XP_ACTIONS[action] || 5;
+    const today = new Date().toISOString().split("T")[0];
+    const prev = progress;
+    const prevLevel = getLevel(prev.xp);
+
+    // Calculate new streak
+    const lastDate = prev.last_active_date;
+    const yesterday = new Date(Date.now() - 86400000).toISOString().split("T")[0];
+    let newStreak = prev.daily_streak || 0;
+    if (lastDate === today) {
+      newStreak = prev.daily_streak; // already logged today
+    } else if (lastDate === yesterday) {
+      newStreak = prev.daily_streak + 1; // consecutive day
+    } else {
+      newStreak = 1; // reset
+    }
+    const longestStreak = Math.max(newStreak, prev.longest_streak || 0);
+    const newXP = (prev.xp || 0) + amount;
+    const newLevel = getLevel(newXP);
+
+    // Check for new badges
+    const currentBadges = Array.isArray(prev.badges) ? prev.badges : [];
+    const newBadges = [...currentBadges];
+    if (!newBadges.includes("first_log")) newBadges.push("first_log");
+    if (newStreak >= 7   && !newBadges.includes("streak7"))   newBadges.push("streak7");
+    if (newStreak >= 30  && !newBadges.includes("streak30"))  newBadges.push("streak30");
+    if (newStreak >= 100 && !newBadges.includes("streak100")) newBadges.push("streak100");
+    if (newLevel.name === "Hustler" && !newBadges.includes("hustler")) newBadges.push("hustler");
+    if (newLevel.name === "Pro"     && !newBadges.includes("pro"))     newBadges.push("pro");
+    if (newLevel.name === "Elite"   && !newBadges.includes("elite"))   newBadges.push("elite");
+    if (newLevel.name === "Legend"  && !newBadges.includes("legend"))  newBadges.push("legend");
+
+    const updated = { user_id: user.id, xp: newXP, level: newLevel.name, daily_streak: newStreak, longest_streak: longestStreak, last_active_date: today, badges: newBadges, updated_at: new Date().toISOString() };
+    await supabase.from("user_progress").upsert(updated, { onConflict: "user_id" });
+    setProgress(updated);
+
+    // Show XP popup
+    setXpPopup({ amount, reason: action });
+    setTimeout(() => setXpPopup(null), 2000);
+
+    // Show level up popup
+    if (newLevel.name !== prevLevel.name) {
+      setLevelUpPopup(newLevel);
+      setTimeout(() => setLevelUpPopup(null), 4000);
+    }
+  };
+
+  // Award daily login XP once per day
+  const awardDailyLogin = async () => {
+    if (!user || isDemo) return;
+    const today = new Date().toISOString().split("T")[0];
+    if (progress.last_active_date === today) return; // already got it today
+    await awardXP("login");
   };
 
   // ── SUPABASE: Save body stats ─────────────────────────────────────────────
@@ -612,9 +706,9 @@ export default function LifeSync({ user, onSignOut, isDemo = false }) {
     const { data } = await supabase.from("weight_log").insert([{ user_id: user.id, weight: w }]).select().single();
     if (data) {
       setWeightLog(p => [...p, data]);
-      // Update current weight in body stats
       await saveBodyStats({ ...bodyStats, current_weight: w });
       setBodyStats(p => ({ ...p, current_weight: w }));
+      awardXP("weight");
     }
     setLogWeightVal(""); setShowLogWeight(false);
   };
@@ -747,6 +841,7 @@ export default function LifeSync({ user, onSignOut, isDemo = false }) {
     }));
     setSuppJustLogged(id);
     setTimeout(() => setSuppJustLogged(null), 2200);
+    awardXP("supplement");
   };
 
   const addSupp = async () => {
@@ -1850,19 +1945,55 @@ export default function LifeSync({ user, onSignOut, isDemo = false }) {
             <div style={{display:"flex",flexDirection:"column",gap:18}}>
 
               {/* Hero */}
-              <div style={{background:"linear-gradient(135deg,#0d1829,#0a1f3d)",border:"1px solid #1a3356",borderRadius:16,padding:"20px 28px",display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:16}}>
-                <div style={{display:"flex",alignItems:"center",gap:18}}>
-                  <div style={{width:64,height:64,borderRadius:"50%",background:"linear-gradient(135deg,#1d4ed8,#4ade80)",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:900,fontSize:22}}>
-                    {(username||"?").slice(0,2).toUpperCase()}
+              {(()=>{
+                const lvl = getLevel(progress.xp||0);
+                const nextLvl = getNextLevel(progress.xp||0);
+                const xpToNext = nextLvl ? nextLvl.minXP - (progress.xp||0) : 0;
+                const xpPct = nextLvl ? Math.round(((progress.xp||0) - getLevel(progress.xp||0).minXP) / (nextLvl.minXP - getLevel(progress.xp||0).minXP) * 100) : 100;
+                return (
+                  <div style={{background:"linear-gradient(135deg,#0d1829,#0a1f3d)",border:"1px solid #1a3356",borderRadius:16,padding:"20px 28px",display:"flex",flexDirection:"column",gap:16}}>
+                    <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:12}}>
+                      <div style={{display:"flex",alignItems:"center",gap:18}}>
+                        <div style={{position:"relative"}}>
+                          <div style={{width:64,height:64,borderRadius:"50%",background:"linear-gradient(135deg,#1d4ed8,#4ade80)",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:900,fontSize:22}}>
+                            {(username||"?").slice(0,2).toUpperCase()}
+                          </div>
+                          <div style={{position:"absolute",bottom:-4,right:-4,fontSize:16}}>{lvl.icon}</div>
+                        </div>
+                        <div>
+                          <div style={{fontSize:22,fontWeight:900}}>@{username||"you"}</div>
+                          <div style={{display:"flex",alignItems:"center",gap:8,marginTop:4}}>
+                            <span style={{fontSize:13,fontWeight:700,color:lvl.color}}>{lvl.name}</span>
+                            <span style={{fontSize:11,color:"#475569"}}>·</span>
+                            <span style={{fontSize:13,color:"#facc15",fontWeight:700}}>🔥 {progress.daily_streak||0} day streak</span>
+                          </div>
+                          {bs.goal_type && <div style={{fontSize:12,color:"#64748b",marginTop:2}}>{goalTypes[bs.goal_type]||bs.goal_type}</div>}
+                        </div>
+                      </div>
+                      <button style={{...C.btn("#6366f1")}} onClick={()=>{ setProfileForm({...bs}); setShowEditProfile(true); }}>✏ Edit Profile</button>
+                    </div>
+                    {/* XP bar */}
+                    <div>
+                      <div style={{display:"flex",justifyContent:"space-between",fontSize:11,color:"#64748b",marginBottom:5}}>
+                        <span style={{fontWeight:700,color:lvl.color}}>{(progress.xp||0).toLocaleString()} XP</span>
+                        {nextLvl ? <span>{xpToNext.toLocaleString()} XP to {nextLvl.name}</span> : <span style={{color:"#4ade80"}}>Max level reached! 🏆</span>}
+                      </div>
+                      <div style={{background:"#1e293b",borderRadius:99,height:8,overflow:"hidden"}}>
+                        <div style={{width:`${xpPct}%`,background:`linear-gradient(90deg,${lvl.color},#818cf8)`,height:"100%",borderRadius:99,transition:"width 0.8s"}}/>
+                      </div>
+                    </div>
+                    {/* Streak stats */}
+                    <div style={{display:"flex",gap:12}}>
+                      {[["🔥 Current Streak",`${progress.daily_streak||0} days`,"#facc15"],["⚡ Longest Streak",`${progress.longest_streak||0} days`,"#60a5fa"],["✨ Total XP",`${(progress.xp||0).toLocaleString()}`,"#a78bfa"],["🏆 Life Score",`${lifeScore}/100`,"#4ade80"]].map(([label,val,color])=>(
+                        <div key={label} style={{flex:1,background:"#080f1e",borderRadius:10,padding:"10px 12px",textAlign:"center",border:"1px solid #1a3356"}}>
+                          <div style={{fontSize:15,fontWeight:800,color}}>{val}</div>
+                          <div style={{fontSize:10,color:"#475569",marginTop:2}}>{label}</div>
+                        </div>
+                      ))}
+                    </div>
                   </div>
-                  <div>
-                    <div style={{fontSize:22,fontWeight:900}}>@{username||"you"}</div>
-                    {bs.goal_type && <div style={{fontSize:13,color:"#818cf8",marginTop:4,fontWeight:600}}>{goalTypes[bs.goal_type]||bs.goal_type}</div>}
-                    {!hasStats && <div style={{fontSize:12,color:"#475569",marginTop:4}}>Add your stats to unlock body tracking</div>}
-                  </div>
-                </div>
-                <button style={{...C.btn("#6366f1")}} onClick={()=>{ setProfileForm({...bs}); setShowEditProfile(true); }}>✏ Edit Profile</button>
-              </div>
+                );
+              })()}
 
               {/* Stats row */}
               {hasStats && (
@@ -1881,6 +2012,25 @@ export default function LifeSync({ user, onSignOut, isDemo = false }) {
                       <div style={{fontSize:11,color:"#475569",marginTop:3}}>{label}</div>
                     </div>
                   ))}
+                </div>
+              )}
+
+              {/* Badges */}
+              {progress.badges && progress.badges.length > 0 && (
+                <div style={C.card}>
+                  <div style={C.cTitle}>🏅 Badges Earned</div>
+                  <div style={{display:"flex",flexWrap:"wrap",gap:10,marginTop:8}}>
+                    {progress.badges.map(bid=>{
+                      const badge = BADGES.find(b=>b.id===bid);
+                      if (!badge) return null;
+                      return(
+                        <div key={bid} title={badge.desc} style={{display:"flex",alignItems:"center",gap:8,background:"rgba(99,102,241,0.1)",border:"1px solid rgba(99,102,241,0.3)",borderRadius:10,padding:"8px 14px"}}>
+                          <span style={{fontSize:20}}>{badge.icon}</span>
+                          <div><div style={{fontSize:12,fontWeight:700,color:"#818cf8"}}>{badge.label}</div><div style={{fontSize:10,color:"#475569"}}>{badge.desc}</div></div>
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
               )}
 
@@ -2389,6 +2539,31 @@ export default function LifeSync({ user, onSignOut, isDemo = false }) {
         </div>
       )}
 
+
+
+      {/* ── XP POPUP ── */}
+      {xpPopup&&(
+        <div style={{position:"fixed",bottom:80,right:24,background:"linear-gradient(135deg,#1a1f3a,#0d1829)",border:"1px solid #6366f1",borderRadius:12,padding:"10px 18px",zIndex:9999,display:"flex",alignItems:"center",gap:10,boxShadow:"0 8px 32px rgba(0,0,0,0.4)",animation:"slideIn 0.3s ease"}}>
+          <span style={{fontSize:22}}>✨</span>
+          <div>
+            <div style={{fontSize:15,fontWeight:800,color:"#818cf8"}}>+{xpPopup.amount} XP</div>
+            <div style={{fontSize:11,color:"#64748b",textTransform:"capitalize"}}>{xpPopup.reason} logged</div>
+          </div>
+        </div>
+      )}
+
+      {/* ── LEVEL UP POPUP ── */}
+      {levelUpPopup&&(
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.7)",zIndex:10000,display:"flex",alignItems:"center",justifyContent:"center"}} onClick={()=>setLevelUpPopup(null)}>
+          <div style={{background:"linear-gradient(135deg,#0d1829,#1a1040)",border:"2px solid #6366f1",borderRadius:20,padding:"40px 48px",textAlign:"center",maxWidth:360}}>
+            <div style={{fontSize:64,marginBottom:12}}>{levelUpPopup.icon}</div>
+            <div style={{fontSize:13,color:"#818cf8",fontWeight:700,textTransform:"uppercase",letterSpacing:2,marginBottom:8}}>Level Up!</div>
+            <div style={{fontSize:32,fontWeight:900,color:levelUpPopup.color,marginBottom:8}}>{levelUpPopup.name}</div>
+            <div style={{fontSize:14,color:"#64748b",marginBottom:24}}>You've reached a new level. Keep the streak going!</div>
+            <button style={C.btn("#6366f1")} onClick={()=>setLevelUpPopup(null)}>Let's Go 🚀</button>
+          </div>
+        </div>
+      )}
 
       {/* ── EDIT PROFILE MODAL ── */}
       {showEditProfile&&(
