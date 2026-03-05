@@ -2614,7 +2614,7 @@ export default function LifeSync({ user, onSignOut, isDemo = false }) {
           );
         })()}
 
-        {/* ── LEAGUE ── */
+        {/* ── LEAGUE ── */}
         {tab==="league"&&(()=>{
           const sorted = [...leagueMembers].map(m => m.isYou ? {...m, score: myLeagueScore, name: username||"You", avatar: (username||"YO").slice(0,2).toUpperCase()} : m).sort((a,b)=>b.score-a.score);
           const myRank = sorted.findIndex(m=>m.isYou) + 1;
