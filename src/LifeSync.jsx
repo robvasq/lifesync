@@ -471,6 +471,12 @@ export default function LifeSync({ user, onSignOut, isDemo = false }) {
   const [showEditProfile, setShowEditProfile] = useState(false);
   const [profileForm, setProfileForm] = useState({ age:"", height_in:"", current_weight:"", goal_weight:"", goal_type:"fat_loss", goal_date:"", goal_label:"" });
   const [logWeightVal, setLogWeightVal] = useState("");
+  // ── GOALS STATE ──
+  const [goals, setGoals] = useState([]);
+  const [showAddGoal, setShowAddGoal] = useState(false);
+  const [showUpdateGoal, setShowUpdateGoal] = useState(null); // goal object
+  const [goalUpdateVal, setGoalUpdateVal] = useState("");
+  const [newGoal, setNewGoal] = useState({ title:"", category:"fitness", current_value:"0", target_value:"", unit:"", deadline:"" });
   const [showLogWeight, setShowLogWeight] = useState(false);
   const [aiInput, setAiInput] = useState("");
   const [msgs, setMsgs] = useState([
@@ -570,6 +576,10 @@ export default function LifeSync({ user, onSignOut, isDemo = false }) {
         setSupplements(suppData.map(s => ({ ...s, takenToday: s.taken_today, history: Array(28).fill(0) })));
       }
 
+      // Load goals
+      const { data: goalsData } = await supabase.from("goals").select("*").eq("user_id", user.id).order("created_at", { ascending: false });
+      if (goalsData) setGoals(goalsData);
+
       // Load body stats
       const { data: bsData } = await supabase.from("body_stats").select("*").eq("user_id", user.id).maybeSingle();
       if (bsData) { setBodyStats(bsData); setProfileForm(bsData); }
@@ -620,6 +630,46 @@ export default function LifeSync({ user, onSignOut, isDemo = false }) {
       await supabase.from("habits").insert([{ user_id: user.id, name: habitId, streak, completed: true }]);
     }
     awardXP("habit");
+  };
+
+  // ── GOALS CRUD ────────────────────────────────────────────────────────────────
+  const addGoal = async () => {
+    if (!newGoal.title.trim() || !newGoal.target_value) return;
+    const payload = {
+      user_id: user?.id,
+      title: newGoal.title.trim(),
+      category: newGoal.category,
+      current_value: parseFloat(newGoal.current_value) || 0,
+      target_value: parseFloat(newGoal.target_value),
+      unit: newGoal.unit.trim(),
+      deadline: newGoal.deadline || null,
+      completed: false,
+    };
+    if (user) {
+      const { data } = await supabase.from("goals").insert([payload]).select().single();
+      if (data) { setGoals(p => [data, ...p]); awardXP("habit"); }
+    } else {
+      setGoals(p => [{ ...payload, id: "g_" + Date.now() }, ...p]);
+    }
+    setNewGoal({ title:"", category:"fitness", current_value:"0", target_value:"", unit:"", deadline:"" });
+    setShowAddGoal(false);
+  };
+
+  const updateGoalProgress = async (goal, newVal) => {
+    const v = parseFloat(newVal);
+    if (isNaN(v)) return;
+    const completed = v >= goal.target_value;
+    const updated = { ...goal, current_value: v, completed, updated_at: new Date().toISOString() };
+    if (user) await supabase.from("goals").update({ current_value: v, completed, updated_at: updated.updated_at }).eq("id", goal.id);
+    setGoals(p => p.map(g => g.id === goal.id ? updated : g));
+    if (completed) awardXP("habit");
+    setShowUpdateGoal(null);
+    setGoalUpdateVal("");
+  };
+
+  const deleteGoal = async (id) => {
+    if (user) await supabase.from("goals").delete().eq("id", id);
+    setGoals(p => p.filter(g => g.id !== id));
   };
 
   // ── GAMIFICATION: Award XP + update streak ────────────────────────────────
@@ -1135,6 +1185,42 @@ export default function LifeSync({ user, onSignOut, isDemo = false }) {
               </div>
             </div>
           </div>
+
+          {/* Goals overview widget */}
+          {goals.filter(g=>!g.completed).length > 0 && (
+            <div style={C.card}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
+                <div style={C.cTitle}>🎯 Active Goals</div>
+                <button onClick={()=>setTab("profile")} style={{...C.ghost,fontSize:11,padding:"4px 12px"}}>View all →</button>
+              </div>
+              <div style={{display:"flex",flexDirection:"column",gap:10}}>
+                {goals.filter(g=>!g.completed).slice(0,3).map(g=>{
+                  const pct = g.target_value > 0 ? Math.min(100, Math.round((g.current_value/g.target_value)*100)) : 0;
+                  const daysLeft = g.deadline ? Math.ceil((new Date(g.deadline)-new Date())/(1000*60*60*24)) : null;
+                  const catColors = { fitness:"#4ade80", finance:"#60a5fa", health:"#f97316", personal:"#a78bfa" };
+                  const col = catColors[g.category] || "#818cf8";
+                  return (
+                    <div key={g.id} style={{background:"#080f1e",borderRadius:12,padding:"12px 16px",border:"1px solid #0f2240"}}>
+                      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
+                        <div style={{display:"flex",alignItems:"center",gap:8}}>
+                          <span style={{fontSize:11,fontWeight:700,color:col,background:`${col}18`,border:`1px solid ${col}30`,borderRadius:6,padding:"2px 8px",textTransform:"uppercase"}}>{g.category}</span>
+                          <span style={{fontSize:13,fontWeight:700}}>{g.title}</span>
+                        </div>
+                        <div style={{fontSize:12,fontWeight:800,color:col}}>{pct}%</div>
+                      </div>
+                      <div style={{background:"#1e293b",borderRadius:99,height:6,overflow:"hidden",marginBottom:4}}>
+                        <div style={{width:`${pct}%`,background:`linear-gradient(90deg,${col},${col}99)`,height:"100%",borderRadius:99,transition:"width 0.8s"}}/>
+                      </div>
+                      <div style={{display:"flex",justifyContent:"space-between",fontSize:11,color:"#475569"}}>
+                        <span>{g.current_value} / {g.target_value} {g.unit}</span>
+                        {daysLeft !== null && <span style={{color:daysLeft<=7?"#f87171":daysLeft<=30?"#facc15":"#475569"}}>{daysLeft > 0 ? `${daysLeft}d left` : "Overdue!"}</span>}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
         )}
 
         {/* ── HABITS ── */}
@@ -2034,6 +2120,77 @@ export default function LifeSync({ user, onSignOut, isDemo = false }) {
                 </div>
               )}
 
+              {/* Goals section */}
+              <div style={C.card}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
+                  <div style={C.cTitle}>🎯 My Goals</div>
+                  <button style={{...C.btn("#6366f1"),fontSize:11,padding:"5px 14px"}} onClick={()=>setShowAddGoal(true)}>+ Add Goal</button>
+                </div>
+                {goals.length === 0 ? (
+                  <div style={{textAlign:"center",padding:"24px 0"}}>
+                    <div style={{fontSize:36,marginBottom:10}}>🎯</div>
+                    <div style={{fontSize:14,fontWeight:700,marginBottom:6}}>No goals yet</div>
+                    <div style={{fontSize:12,color:"#475569",marginBottom:16}}>Set a goal and track your progress here.</div>
+                    <button style={C.btn("#6366f1")} onClick={()=>setShowAddGoal(true)}>+ Set Your First Goal</button>
+                  </div>
+                ) : (
+                  <div style={{display:"flex",flexDirection:"column",gap:12}}>
+                    {/* Active goals */}
+                    {goals.filter(g=>!g.completed).map(g=>{
+                      const pct = g.target_value > 0 ? Math.min(100, Math.round((g.current_value/g.target_value)*100)) : 0;
+                      const daysLeft = g.deadline ? Math.ceil((new Date(g.deadline)-new Date())/(1000*60*60*24)) : null;
+                      const catColors = { fitness:"#4ade80", finance:"#60a5fa", health:"#f97316", personal:"#a78bfa" };
+                      const col = catColors[g.category] || "#818cf8";
+                      return (
+                        <div key={g.id} style={{background:"#080f1e",border:"1px solid #1a3356",borderRadius:14,padding:"16px 18px"}}>
+                          <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:10}}>
+                            <div style={{flex:1}}>
+                              <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:4,flexWrap:"wrap"}}>
+                                <span style={{fontSize:11,fontWeight:700,color:col,background:`${col}18`,border:`1px solid ${col}30`,borderRadius:6,padding:"2px 8px",textTransform:"uppercase"}}>{g.category}</span>
+                                {daysLeft !== null && <span style={{fontSize:11,color:daysLeft<=7?"#f87171":daysLeft<=14?"#facc15":"#475569"}}>{daysLeft > 0 ? `${daysLeft} days left` : "⚠ Overdue"}</span>}
+                              </div>
+                              <div style={{fontSize:16,fontWeight:800}}>{g.title}</div>
+                            </div>
+                            <div style={{display:"flex",gap:6,flexShrink:0}}>
+                              <button onClick={()=>{setShowUpdateGoal(g);setGoalUpdateVal(String(g.current_value));}} style={{background:"rgba(99,102,241,0.15)",border:"1px solid #6366f1",color:"#818cf8",borderRadius:8,padding:"4px 10px",fontSize:11,cursor:"pointer",fontWeight:700}}>Update</button>
+                              <button onClick={()=>deleteGoal(g.id)} style={{background:"transparent",border:"1px solid #1a3356",color:"#475569",borderRadius:8,padding:"4px 8px",fontSize:11,cursor:"pointer"}}>×</button>
+                            </div>
+                          </div>
+                          {/* Progress bar */}
+                          <div style={{background:"#1e293b",borderRadius:99,height:10,overflow:"hidden",marginBottom:6}}>
+                            <div style={{width:`${pct}%`,background:`linear-gradient(90deg,${col},${col}99)`,height:"100%",borderRadius:99,transition:"width 0.8s"}}/>
+                          </div>
+                          <div style={{display:"flex",justifyContent:"space-between",fontSize:12}}>
+                            <span style={{color:"#64748b"}}>{g.current_value} / {g.target_value} {g.unit}</span>
+                            <span style={{fontWeight:800,color:col}}>{pct}%</span>
+                          </div>
+                          {g.deadline && (
+                            <div style={{fontSize:11,color:"#475569",marginTop:4}}>
+                              Target: {new Date(g.deadline).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                    {/* Completed goals */}
+                    {goals.filter(g=>g.completed).length > 0 && (
+                      <div>
+                        <div style={{fontSize:11,color:"#4ade80",fontWeight:700,textTransform:"uppercase",letterSpacing:1,marginBottom:10,marginTop:4}}>✅ Completed</div>
+                        {goals.filter(g=>g.completed).map(g=>(
+                          <div key={g.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"10px 14px",background:"rgba(74,222,128,0.05)",border:"1px solid rgba(74,222,128,0.15)",borderRadius:10,marginBottom:8,opacity:0.8}}>
+                            <div>
+                              <div style={{fontSize:13,fontWeight:700,color:"#4ade80"}}>✓ {g.title}</div>
+                              <div style={{fontSize:11,color:"#475569"}}>{g.target_value} {g.unit} achieved</div>
+                            </div>
+                            <button onClick={()=>deleteGoal(g.id)} style={{background:"transparent",border:"none",color:"#334155",fontSize:16,cursor:"pointer"}}>×</button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
               {!hasStats && (
                 <div style={{...C.card,textAlign:"center",padding:"40px 20px"}}>
                   <div style={{fontSize:48,marginBottom:12}}>📊</div>
@@ -2540,6 +2697,121 @@ export default function LifeSync({ user, onSignOut, isDemo = false }) {
       )}
 
 
+
+
+      {/* ── ADD GOAL MODAL ── */}
+      {showAddGoal&&(
+        <div style={C.overlay} onClick={()=>setShowAddGoal(false)}>
+          <div style={{...C.mbox,width:460}} onClick={e=>e.stopPropagation()}>
+            <div style={{fontSize:18,fontWeight:800,marginBottom:4}}>🎯 Set a New Goal</div>
+            <div style={{fontSize:12,color:"#64748b",marginBottom:20}}>Track any goal — fitness, money, health, or personal.</div>
+
+            {/* Title */}
+            <div style={{marginBottom:12}}>
+              <div style={{fontSize:11,color:"#64748b",marginBottom:5}}>Goal title</div>
+              <input value={newGoal.title} onChange={e=>setNewGoal(p=>({...p,title:e.target.value}))}
+                placeholder='e.g. "Run a 5K" or "Save $10,000"'
+                style={{...C.inp,width:"100%"}} autoFocus/>
+            </div>
+
+            {/* Category */}
+            <div style={{marginBottom:12}}>
+              <div style={{fontSize:11,color:"#64748b",marginBottom:8}}>Category</div>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr 1fr",gap:8}}>
+                {[["fitness","🏃 Fitness","#4ade80"],["finance","💰 Finance","#60a5fa"],["health","❤️ Health","#f97316"],["personal","⭐ Personal","#a78bfa"]].map(([val,label,col])=>(
+                  <button key={val} onClick={()=>setNewGoal(p=>({...p,category:val}))}
+                    style={{background:newGoal.category===val?`${col}18`:"#080f1e",border:`1px solid ${newGoal.category===val?col:"#1a3356"}`,color:newGoal.category===val?col:"#64748b",borderRadius:10,padding:"8px 6px",cursor:"pointer",fontSize:12,fontWeight:700,textAlign:"center"}}>
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Progress values */}
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10,marginBottom:12}}>
+              <div>
+                <div style={{fontSize:11,color:"#64748b",marginBottom:5}}>Starting value</div>
+                <input value={newGoal.current_value} onChange={e=>setNewGoal(p=>({...p,current_value:e.target.value}))}
+                  placeholder="0" style={{...C.inp,width:"100%"}} type="number"/>
+              </div>
+              <div>
+                <div style={{fontSize:11,color:"#64748b",marginBottom:5}}>Target value *</div>
+                <input value={newGoal.target_value} onChange={e=>setNewGoal(p=>({...p,target_value:e.target.value}))}
+                  placeholder="100" style={{...C.inp,width:"100%"}} type="number"/>
+              </div>
+              <div>
+                <div style={{fontSize:11,color:"#64748b",marginBottom:5}}>Unit</div>
+                <input value={newGoal.unit} onChange={e=>setNewGoal(p=>({...p,unit:e.target.value}))}
+                  placeholder="lbs, $, km..." style={{...C.inp,width:"100%"}}/>
+              </div>
+            </div>
+
+            {/* Deadline */}
+            <div style={{marginBottom:20}}>
+              <div style={{fontSize:11,color:"#64748b",marginBottom:5}}>Target date (optional)</div>
+              <input value={newGoal.deadline} onChange={e=>setNewGoal(p=>({...p,deadline:e.target.value}))}
+                style={{...C.inp,width:"100%"}} type="date"/>
+            </div>
+
+            {/* Quick templates */}
+            <div style={{marginBottom:20}}>
+              <div style={{fontSize:11,color:"#64748b",marginBottom:8}}>Quick templates</div>
+              <div style={{display:"flex",flexWrap:"wrap",gap:8}}>
+                {[
+                  {title:"Run a 5K",category:"fitness",target_value:"5",unit:"km",current_value:"0"},
+                  {title:"Save $10,000",category:"finance",target_value:"10000",unit:"$",current_value:"0"},
+                  {title:"Lose 20 lbs",category:"fitness",target_value:"20",unit:"lbs",current_value:"0"},
+                  {title:"Read 12 books",category:"personal",target_value:"12",unit:"books",current_value:"0"},
+                  {title:"No missed workouts",category:"fitness",target_value:"30",unit:"days",current_value:"0"},
+                ].map(t=>(
+                  <button key={t.title} onClick={()=>setNewGoal(p=>({...p,...t}))}
+                    style={{background:"#080f1e",border:"1px solid #1a3356",color:"#64748b",borderRadius:20,padding:"5px 12px",fontSize:11,cursor:"pointer",fontWeight:600}}>
+                    {t.title}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div style={{display:"flex",gap:10}}>
+              <button style={{...C.btn("#6366f1"),flex:1}} onClick={addGoal} disabled={!newGoal.title.trim()||!newGoal.target_value}>Add Goal →</button>
+              <button style={{...C.ghost,padding:"9px 18px"}} onClick={()=>setShowAddGoal(false)}>Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── UPDATE GOAL PROGRESS MODAL ── */}
+      {showUpdateGoal&&(
+        <div style={C.overlay} onClick={()=>setShowUpdateGoal(null)}>
+          <div style={{...C.mbox,width:360}} onClick={e=>e.stopPropagation()}>
+            <div style={{fontSize:18,fontWeight:800,marginBottom:4}}>📈 Update Progress</div>
+            <div style={{fontSize:13,color:"#818cf8",fontWeight:700,marginBottom:4}}>{showUpdateGoal.title}</div>
+            <div style={{fontSize:12,color:"#64748b",marginBottom:16}}>Target: {showUpdateGoal.target_value} {showUpdateGoal.unit}</div>
+            <div style={{position:"relative",marginBottom:6}}>
+              <input value={goalUpdateVal} onChange={e=>setGoalUpdateVal(e.target.value)}
+                placeholder={String(showUpdateGoal.current_value)}
+                style={{...C.inp,width:"100%",fontSize:28,textAlign:"center",fontWeight:800}} type="number" autoFocus/>
+            </div>
+            <div style={{textAlign:"center",fontSize:12,color:"#475569",marginBottom:16}}>{showUpdateGoal.unit}</div>
+            {/* Preview progress */}
+            {goalUpdateVal && (
+              <div style={{marginBottom:16}}>
+                <div style={{background:"#1e293b",borderRadius:99,height:8,overflow:"hidden",marginBottom:4}}>
+                  <div style={{width:`${Math.min(100,Math.round((parseFloat(goalUpdateVal)/showUpdateGoal.target_value)*100))}%`,background:"linear-gradient(90deg,#6366f1,#818cf8)",height:"100%",borderRadius:99}}/>
+                </div>
+                <div style={{textAlign:"center",fontSize:12,color:"#818cf8",fontWeight:700}}>
+                  {Math.min(100,Math.round((parseFloat(goalUpdateVal)/showUpdateGoal.target_value)*100))}% complete
+                  {parseFloat(goalUpdateVal)>=showUpdateGoal.target_value && <span style={{color:"#4ade80"}}> 🎉 Goal reached!</span>}
+                </div>
+              </div>
+            )}
+            <div style={{display:"flex",gap:10}}>
+              <button style={{...C.btn("#6366f1"),flex:1}} onClick={()=>updateGoalProgress(showUpdateGoal,goalUpdateVal)} disabled={!goalUpdateVal}>Save →</button>
+              <button style={{...C.ghost,padding:"9px 18px"}} onClick={()=>setShowUpdateGoal(null)}>Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── XP POPUP ── */}
       {xpPopup&&(
