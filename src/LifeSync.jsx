@@ -21,13 +21,6 @@ const INITIAL_SUPPLEMENTS = [];
 
 const CREDIT_HISTORY = [];
 
-const SCORE_FACTORS = [
-  { label:"Payment History",    weight:35, value:88, desc:"14-month on-time streak",         color:"#4ade80" },
-  { label:"Credit Utilization", weight:30, value:48, desc:"$2,400 / $5,000 limit (48%)",     color:"#f87171" },
-  { label:"Credit Age",         weight:15, value:72, desc:"Avg account age: 4.2 years",       color:"#facc15" },
-  { label:"Credit Mix",         weight:10, value:80, desc:"Card + auto + student loan",        color:"#60a5fa" },
-  { label:"New Credit",         weight:10, value:90, desc:"No hard inquiries in 12 months",   color:"#a78bfa" },
-];
 
 const PHQ2 = [
   "Over the past 2 weeks, how often have you felt little interest or pleasure in doing things?",
@@ -358,6 +351,32 @@ const INITIAL_TRASH_TALK = [
   { id:4, from:"Sofia R.", avatar:"SR", text:"Rough week ngl. Life's been busy but I'm not out yet 💪",        time:"1d ago",  likes:5 },
 ];
 
+const calcCreditFactors = (debts, habits, monthlyIncome) => {
+  const payHabit = habits.find(h=>h.id==="cardpay");
+  const payStreak = payHabit?.streak||0;
+  const payValue = Math.min(100, 60 + payStreak * 2);
+  const payColor = payValue>=80?"#4ade80":payValue>=60?"#facc15":"#f87171";
+  const payDesc = payStreak>0 ? `${payStreak}-month on-time streak` : "No payment history logged yet";
+  const ccDebt = debts.filter(d=>(d.name||"").toLowerCase().includes("credit")||(parseFloat(d.apr)>15)).reduce((a,d)=>a+(d.balance||0),0);
+  const estLimit = Math.max(ccDebt*2, 5000);
+  const utilPct = estLimit>0 ? Math.round((ccDebt/estLimit)*100) : 0;
+  const utilValue = Math.max(0, 100-utilPct);
+  const utilColor = utilPct<=30?"#4ade80":utilPct<=50?"#facc15":"#f87171";
+  const utilDesc = ccDebt>0 ? `$${ccDebt.toLocaleString()} CC balance (~${utilPct}% utilization)` : "No credit card debt — great!";
+  const totalDebt = debts.reduce((a,d)=>a+(d.balance||0),0);
+  const dti = monthlyIncome>0 ? Math.round((totalDebt/(monthlyIncome*12))*100) : 0;
+  const dtiValue = Math.max(0, 100-dti);
+  const dtiColor = dti<=20?"#4ade80":dti<=50?"#facc15":"#f87171";
+  const dtiDesc = totalDebt>0 ? `$${totalDebt.toLocaleString()} total debt (${dti}% DTI)` : "No debt — excellent!";
+  return [
+    { label:"Payment History",    weight:35, value:payValue,  desc:payDesc,  color:payColor  },
+    { label:"Credit Utilization", weight:30, value:utilValue, desc:utilDesc, color:utilColor },
+    { label:"Debt-to-Income",     weight:20, value:dtiValue,  desc:dtiDesc,  color:dtiColor  },
+    { label:"Credit Age",         weight:15, value:72,        desc:"Avg account age: 4.2 yrs", color:"#facc15" },
+    { label:"New Credit",         weight:10, value:90,        desc:"No hard inquiries (12mo)", color:"#a78bfa" },
+  ];
+};
+
 export default function LifeSync({ user, onSignOut, isDemo = false }) {
   const navigate = useNavigate();
   const DEMO = isDemo ? PICKED_DEMO : DEMO_PROFILES[0];
@@ -397,7 +416,7 @@ export default function LifeSync({ user, onSignOut, isDemo = false }) {
   const [newCheckup, setNewCheckup] = useState({name:"",last_date:"",urgent:false});
   const [financeForm, setFinanceForm] = useState({income:"",expenses:"",savings:""});
   const [creditHistory, setCreditHistory] = useState(isDemo ? DEMO.creditHistory : CREDIT_HISTORY);
-  const [creditFactors, setCreditFactors] = useState(SCORE_FACTORS);
+  const creditFactors = calcCreditFactors(debts, habits, monthlyIncome);
   const [showUpdateScore, setShowUpdateScore] = useState(false);
   const [newScoreInput, setNewScoreInput] = useState("");
   const [simMode, setSimMode] = useState(false);
@@ -972,13 +991,52 @@ export default function LifeSync({ user, onSignOut, isDemo = false }) {
             <div style={C.card}>
               <div style={C.cTitle}>Priority Actions</div>
               <div style={C.g()}>
-                {[{icon:"💊",text:"Metformin refill in 3 days",color:"#f87171",action:"Remind me",go:"health"},{icon:"💰",text:"$1,200 tax credit — you may qualify",color:"#4ade80",action:"Learn more",go:"ai"},{icon:"🏥",text:"Annual physical is overdue",color:"#facc15",action:"Find a clinic",go:"ai"},{icon:"🔥",text:"Log today's gym session to keep streak",color:"#f97316",action:"Log now",go:"habits"}].map((a,i)=>(
-                  <div key={i} style={{background:"#080f1e",borderRadius:12,padding:"12px 16px",display:"flex",alignItems:"center",gap:12,border:"1px solid #0f2240"}}>
-                    <span style={{fontSize:22}}>{a.icon}</span>
-                    <div style={{flex:1,fontSize:13,fontWeight:600}}>{a.text}</div>
-                    <button onClick={()=>setTab(a.go)} style={{background:"transparent",border:`1px solid ${a.color}`,color:a.color,borderRadius:8,padding:"4px 10px",fontSize:11,fontWeight:700,cursor:"pointer"}}>{a.action}</button>
-                  </div>
-                ))}
+                {(()=>{
+                  const actions = [];
+                  // Low medication refills
+                  medications.filter(m=>(m.refill_days||30)<=7).forEach(m=>{
+                    actions.push({icon:"💊",text:`${m.name} refill in ${m.refill_days} day${m.refill_days===1?"":"s"}`,color:"#f87171",action:"View",go:"health"});
+                  });
+                  // Overdue bills
+                  bills.filter(b=>b.status==="overdue").forEach(b=>{
+                    actions.push({icon:"🧾",text:`${b.name} bill is overdue — $${(b.amount||0).toLocaleString()}`,color:"#f87171",action:"View",go:"finances"});
+                  });
+                  // Overdue checkups
+                  checkups.filter(ch=>ch.urgent).slice(0,2).forEach(ch=>{
+                    actions.push({icon:"🏥",text:`${ch.name} is overdue`,color:"#facc15",action:"View",go:"health"});
+                  });
+                  // Habit streaks at risk (active habits with streak > 0, not logged today)
+                  const topStreak = [...habits].filter(h=>h.active&&h.streak>0).sort((a,b)=>b.streak-a.streak)[0];
+                  if (topStreak) {
+                    const tmpl = HABIT_TEMPLATES.find(t=>t.id===topStreak.id);
+                    actions.push({icon:"🔥",text:`Log ${tmpl?.label||topStreak.id} to keep your ${topStreak.streak}-day streak`,color:"#f97316",action:"Log now",go:"habits"});
+                  }
+                  // Low savings alert
+                  if (monthlyIncome>0 && savings < monthlyIncome) {
+                    actions.push({icon:"💰",text:`Savings ($${savings.toLocaleString()}) below 1 month income — consider boosting`,color:"#4ade80",action:"View",go:"finances"});
+                  }
+                  // High debt-to-income
+                  const totalDebt = debts.reduce((a,d)=>a+(d.balance||0),0);
+                  if (monthlyIncome>0 && totalDebt > monthlyIncome*12) {
+                    actions.push({icon:"📉",text:`Debt ($${totalDebt.toLocaleString()}) exceeds annual income — focus on payoff`,color:"#a78bfa",action:"View",go:"finances"});
+                  }
+                  // Upcoming bills in next 3 days
+                  const today = new Date().getDate();
+                  bills.filter(b=>b.status==="upcoming"&&b.due_day>=today&&b.due_day<=today+3).forEach(b=>{
+                    actions.push({icon:"📅",text:`${b.name} due in ${b.due_day-today} day${b.due_day-today===1?"":"s"} — $${(b.amount||0).toLocaleString()}`,color:"#60a5fa",action:"View",go:"finances"});
+                  });
+                  // No data state
+                  if (actions.length===0) {
+                    actions.push({icon:"✅",text:"Everything looks good! Keep building your streaks.",color:"#4ade80",action:"View habits",go:"habits"});
+                  }
+                  return actions.slice(0,5).map((a,i)=>(
+                    <div key={i} style={{background:"#080f1e",borderRadius:12,padding:"12px 16px",display:"flex",alignItems:"center",gap:12,border:"1px solid #0f2240"}}>
+                      <span style={{fontSize:22}}>{a.icon}</span>
+                      <div style={{flex:1,fontSize:13,fontWeight:600}}>{a.text}</div>
+                      <button onClick={()=>setTab(a.go)} style={{background:"transparent",border:`1px solid ${a.color}`,color:a.color,borderRadius:8,padding:"4px 10px",fontSize:11,fontWeight:700,cursor:"pointer"}}>{a.action}</button>
+                    </div>
+                  ));
+                })()}
               </div>
             </div>
           </div>
@@ -992,7 +1050,11 @@ export default function LifeSync({ user, onSignOut, isDemo = false }) {
               <div>
                 <div style={{fontSize:12,color:"#4ade80",fontWeight:700,textTransform:"uppercase",letterSpacing:1.5,marginBottom:6}}>Habits &amp; Discipline Pillar</div>
                 <div style={{fontSize:30,fontWeight:900}}>{scoreBreakdown.pillars[2].score}<span style={{fontSize:13,color:"#64748b",fontWeight:400}}> / 25 pts · Overall Score {lifeScore}/100</span></div>
-                <div style={{fontSize:12,color:"#f97316",marginTop:4,fontWeight:600}}>⚠ Debt load &amp; overdue checkups are holding your total score back — habits alone can't fix them.</div>
+                {(debts.reduce((a,d)=>a+(d.balance||0),0)>0||checkups.filter(c=>c.urgent).length>0)&&(
+                  <div style={{fontSize:12,color:"#f97316",marginTop:4,fontWeight:600}}>
+                    ⚠ {[debts.reduce((a,d)=>a+(d.balance||0),0)>0&&"Debt load",checkups.filter(c=>c.urgent).length>0&&"overdue checkups"].filter(Boolean).join(" & ")} holding your score back
+                  </div>
+                )}
               </div>
               <ScoreRing score={lifeScore} size={90} doAnimate={false}/>
             </div>
