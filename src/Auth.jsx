@@ -602,10 +602,10 @@ export default function Auth({ onAuthenticated }) {
   const handleAuthSuccess = async (authUser) => {
     setUser(authUser);
     setCheckingProfile(true);
-    // Check if onboarding is complete
-    const { data: profile } = await supabase.from("profiles").select("onboarding_complete").eq("id", authUser.id).single();
+    // Check if onboarding is complete — use maybeSingle so missing column (406) doesn't break login
+    const { data: profile, error: profileError } = await supabase.from("profiles").select("onboarding_complete").eq("id", authUser.id).maybeSingle();
     setCheckingProfile(false);
-    if (profile?.onboarding_complete) {
+    if (profileError || !profile || profile?.onboarding_complete) {
       onAuthenticated(authUser);
     } else {
       setMode("onboarding");
