@@ -69,6 +69,42 @@ const ONBOARDING_STEPS = [
     type: "single",
     options: ["Pay off debt", "Build savings", "Start investing", "Stick to a budget", "Improve credit score"],
   },
+  {
+    key: "body_goal",
+    emoji: "💪",
+    question: "What's your physical health goal?",
+    subtitle: "This unlocks your body stats tracker and calorie targets.",
+    type: "single",
+    options: ["🔥 Fat Loss", "💪 Muscle Gain", "🏃 General Fitness", "⚖️ Maintenance", "🎯 Custom Goal", "Skip for now"],
+  },
+  {
+    key: "current_weight",
+    emoji: "⚖️",
+    question: "What's your current weight?",
+    subtitle: "In pounds. Only you can see this — ever.",
+    type: "number",
+    placeholder: "e.g. 185",
+    unit: "lbs",
+    conditional: (answers) => answers.body_goal && answers.body_goal !== "Skip for now",
+  },
+  {
+    key: "goal_weight",
+    emoji: "🎯",
+    question: "What's your goal weight?",
+    subtitle: "We'll track your progress and show weekly targets.",
+    type: "number",
+    placeholder: "e.g. 165",
+    unit: "lbs",
+    conditional: (answers) => answers.body_goal && answers.body_goal !== "Skip for now",
+  },
+  {
+    key: "height",
+    emoji: "📏",
+    question: "How tall are you?",
+    subtitle: "Used to calculate BMI and calorie targets.",
+    type: "height",
+    conditional: (answers) => answers.body_goal && answers.body_goal !== "Skip for now",
+  },
 ];
 
 // ─── STYLES ──────────────────────────────────────────────────────────────────
@@ -378,11 +414,42 @@ function Onboarding({ user, onComplete }) {
       setSaving(true);
       try {
         if (user?.id) {
+          // Save profile answers
           const { error } = await supabase.from("profiles").update({
             ...answers,
             onboarding_complete: true,
           }).eq("id", user.id);
           if (error) console.error("Supabase update error:", error);
+
+          // Save body stats if provided
+          if (answers.body_goal && answers.body_goal !== "Skip for now") {
+            const goalTypeMap = {
+              "🔥 Fat Loss": "fat_loss",
+              "💪 Muscle Gain": "muscle_gain",
+              "🏃 General Fitness": "general_fitness",
+              "⚖️ Maintenance": "maintenance",
+              "🎯 Custom Goal": "custom",
+            };
+            const heightInches = answers.height_ft && answers.height_in
+              ? parseInt(answers.height_ft) * 12 + parseInt(answers.height_in)
+              : answers.height_ft ? parseInt(answers.height_ft) * 12 : null;
+            await supabase.from("body_stats").upsert({
+              user_id: user.id,
+              goal_type: goalTypeMap[answers.body_goal] || "general_fitness",
+              current_weight: parseFloat(answers.current_weight) || null,
+              goal_weight: parseFloat(answers.goal_weight) || null,
+              height_in: heightInches,
+              updated_at: new Date().toISOString(),
+            }, { onConflict: "user_id" });
+
+            // Also log starting weight
+            if (answers.current_weight) {
+              await supabase.from("weight_log").insert([{
+                user_id: user.id,
+                weight: parseFloat(answers.current_weight),
+              }]);
+            }
+          }
         }
       } catch(e) {
         console.error("Profile save error:", e);
@@ -433,6 +500,55 @@ function Onboarding({ user, onComplete }) {
         <h2 style={{ fontSize: 26, fontWeight: 800, letterSpacing: -0.5, marginBottom: 8, textAlign: "center", lineHeight: 1.2 }}>{step.question}</h2>
         <p style={{ fontSize: 14, color: "#64748b", fontFamily: "'DM Mono', monospace", textAlign: "center", marginBottom: 28, lineHeight: 1.6 }}>{step.subtitle}</p>
 
+        {/* Number input */}
+        {step.type === "number" && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            <div style={{ position: "relative" }}>
+              <input
+                type="number"
+                value={answers[step.key] || ""}
+                onChange={e => setAnswers(prev => ({ ...prev, [step.key]: e.target.value }))}
+                placeholder={step.placeholder}
+                className="auth-input"
+                style={{ fontSize: 28, fontWeight: 800, textAlign: "center", padding: "18px", letterSpacing: 1 }}
+                autoFocus
+              />
+              <div style={{ textAlign: "center", marginTop: 8, fontSize: 13, color: "#475569", fontFamily: "'DM Mono', monospace" }}>{step.unit}</div>
+            </div>
+          </div>
+        )}
+
+        {/* Height input */}
+        {step.type === "height" && (
+          <div style={{ display: "flex", gap: 12 }}>
+            <div style={{ flex: 1 }}>
+              <input
+                type="number"
+                value={answers.height_ft || ""}
+                onChange={e => setAnswers(prev => ({ ...prev, height_ft: e.target.value }))}
+                placeholder="5"
+                className="auth-input"
+                style={{ fontSize: 24, fontWeight: 800, textAlign: "center" }}
+                autoFocus
+              />
+              <div style={{ textAlign: "center", marginTop: 6, fontSize: 13, color: "#475569", fontFamily: "'DM Mono', monospace" }}>feet</div>
+            </div>
+            <div style={{ flex: 1 }}>
+              <input
+                type="number"
+                value={answers.height_in || ""}
+                onChange={e => setAnswers(prev => ({ ...prev, height_in: e.target.value }))}
+                placeholder="10"
+                className="auth-input"
+                style={{ fontSize: 24, fontWeight: 800, textAlign: "center" }}
+              />
+              <div style={{ textAlign: "center", marginTop: 6, fontSize: 13, color: "#475569", fontFamily: "'DM Mono', monospace" }}>inches</div>
+            </div>
+          </div>
+        )}
+
+        {/* Single / bool options */}
+        {(step.type === "single" || step.type === "bool") && (
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           {step.options.map((opt) => (
             <button key={opt} className={`option-card ${displayVal === opt ? "selected" : ""}`}
@@ -449,6 +565,7 @@ function Onboarding({ user, onComplete }) {
             </button>
           ))}
         </div>
+        )}
       </div>
 
       {/* Navigation */}
@@ -461,7 +578,11 @@ function Onboarding({ user, onComplete }) {
           }}>← Back</button>
         )}
         <button className="auth-btn" onClick={next}
-          disabled={displayVal === undefined || saving}
+          disabled={saving || (
+            step.type === "number" ? !answers[step.key] :
+            step.type === "height" ? !answers.height_ft :
+            displayVal === undefined
+          )}
           style={{ flex: 2 }}>
           {saving ? (
             <span style={{ display: "inline-block", width: 18, height: 18, border: "2px solid #fff", borderTopColor: "transparent", borderRadius: "50%", animation: "spin 0.7s linear infinite" }} />
