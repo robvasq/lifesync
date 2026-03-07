@@ -1585,7 +1585,7 @@ export default function LifeSync({ user, onSignOut, isDemo = false }) { // {
                       ["Credit Age", creditDetails.credit_age_years>0?`${creditDetails.credit_age_years} yrs`:"Not set", creditDetails.credit_age_years>0?"#e2e8f0":"#475569"],
                       ["Accounts",   creditDetails.num_accounts>0?creditDetails.num_accounts:"Not set", creditDetails.num_accounts>0?"#e2e8f0":"#475569"],
                     ].map(([label,val,col])=>(
-                      <div key={item.label} style={{background:"#080f1e",borderRadius:10,padding:"10px 14px"}}>
+                      <div key={label} style={{background:"#080f1e",borderRadius:10,padding:"10px 14px"}}>
                         <div style={{fontSize:11,color:"#475569",marginBottom:3}}>{label}</div>
                         <div style={{fontSize:15,fontWeight:700,color:col}}>{val}</div>
                       </div>
@@ -1628,7 +1628,7 @@ export default function LifeSync({ user, onSignOut, isDemo = false }) { // {
                   {[["Exceptional","800–850","#22d3ee",true],["Very Good","740–799","#4ade80",false],["Good","670–739","#facc15",false],["Fair","580–669","#f97316",false],["Poor","300–579","#f87171",false]].map(([label,range,rangeColor,top])=>{
                     const isCurrent = (label==="Good"&&creditScore>=670&&creditScore<740)||(label==="Fair"&&creditScore>=580&&creditScore<670)||(label==="Very Good"&&creditScore>=740&&creditScore<800)||(label==="Exceptional"&&creditScore>=800)||(label==="Poor"&&creditScore<580);
                     return(
-                      <div key={item.label} style={{...C.row,background:isCurrent?"rgba(255,255,255,0.03)":"transparent",borderRadius:8,padding:"8px 10px",marginBottom:2}}>
+                      <div key={label} style={{...C.row,background:isCurrent?"rgba(255,255,255,0.03)":"transparent",borderRadius:8,padding:"8px 10px",marginBottom:2}}>
                         <div style={{display:"flex",alignItems:"center",gap:10}}>
                           <div style={{width:10,height:10,borderRadius:"50%",background:rangeColor}}/>
                           <div>
@@ -2340,7 +2340,7 @@ export default function LifeSync({ user, onSignOut, isDemo = false }) { // {
                     {/* Streak stats */}
                     <div style={{display:"flex",gap:12}}>
                       {[["🔥 Current Streak",`${progress.daily_streak||0} days`,"#facc15"],["⚡ Longest Streak",`${progress.longest_streak||0} days`,"#60a5fa"],["✨ Total XP",`${(progress.xp||0).toLocaleString()}`,"#a78bfa"],["🏆 Life Score",`${lifeScore}/100`,"#4ade80"]].map(([label,val,statColor])=>(
-                        <div key={item.label} style={{flex:1,background:"#080f1e",borderRadius:10,padding:"10px 12px",textAlign:"center",border:"1px solid #1a3356"}}>
+                        <div key={label} style={{flex:1,background:"#080f1e",borderRadius:10,padding:"10px 12px",textAlign:"center",border:"1px solid #1a3356"}}>
                           <div style={{fontSize:15,fontWeight:800,color:statColor}}>{val}</div>
                           <div style={{fontSize:10,color:"#475569",marginTop:2}}>{label}</div>
                         </div>
@@ -2361,7 +2361,7 @@ export default function LifeSync({ user, onSignOut, isDemo = false }) { // {
                     ["BMI", bmi||"—", "📊", bmiColor],
                     ["Daily Calories", tdee ? `~${tdee.toLocaleString()}` : "—", "🔥", "#f97316"],
                   ].map(([label,val,icon,statColor])=>(
-                    <div key={item.label} style={{background:"#080f1e",border:"1px solid #1a3356",borderRadius:14,padding:"14px 16px",textAlign:"center"}}>
+                    <div key={label} style={{background:"#080f1e",border:"1px solid #1a3356",borderRadius:14,padding:"14px 16px",textAlign:"center"}}>
                       <div style={{fontSize:22,marginBottom:6}}>{icon}</div>
                       <div style={{fontSize:18,fontWeight:800,color:statColor}}>{val}</div>
                       <div style={{fontSize:11,color:"#475569",marginTop:3}}>{label}</div>
