@@ -438,7 +438,7 @@ function GoalCard({ g, onUpdate, onDelete, autoValue, autoLabel }) {
   );
 }
 
-export default function LifeSync({ user, onSignOut, isDemo = false }) { // {
+export default function LifeSync({ user, onSignOut, isDemo = false }) {
   const navigate = useNavigate();
   const DEMO = isDemo ? PICKED_DEMO : DEMO_PROFILES[0];
   const [tab, setTab] = useState("overview");
@@ -518,6 +518,9 @@ export default function LifeSync({ user, onSignOut, isDemo = false }) { // {
   const [showUpdateGoal, setShowUpdateGoal] = useState(null); // goal object
   const [goalUpdateVal, setGoalUpdateVal] = useState("");
   const [newGoal, setNewGoal] = useState({ title:"", category:"fitness", current_value:"0", target_value:"", unit:"", deadline:"" });
+  const [recoveryTrackers, setRecoveryTrackers] = useState([]);
+  const [showAddRecovery, setShowAddRecovery] = useState(false);
+  const [newRecovery, setNewRecovery] = useState({ substance:"alcohol", custom:"", start_date: new Date().toISOString().split("T")[0] });
 
   // Auto-link goals to real data
   const getGoalAutoValue = (g) => {
@@ -655,6 +658,10 @@ export default function LifeSync({ user, onSignOut, isDemo = false }) { // {
         setSupplements(suppData.map(s => ({ ...s, takenToday: s.taken_today, history: Array(28).fill(0) })));
       }
 
+      // Load recovery trackers
+      const { data: recoveryData } = await supabase.from("recovery_trackers").select("*").eq("user_id", user.id).order("created_at");
+      if (recoveryData) setRecoveryTrackers(recoveryData);
+
       // Load goals
       const { data: goalsData } = await supabase.from("goals").select("*").eq("user_id", user.id).order("created_at", { ascending: false });
       if (goalsData) setGoals(goalsData);
@@ -712,6 +719,37 @@ export default function LifeSync({ user, onSignOut, isDemo = false }) { // {
   };
 
   // ── GOALS CRUD ────────────────────────────────────────────────────────────────
+  const addRecovery = async () => {
+    if (!user) return;
+    const label = newRecovery.substance === "custom" ? newRecovery.custom.trim() : {
+      alcohol:"Alcohol", nicotine:"Nicotine / Vaping", drugs:"Drugs",
+      gambling:"Gambling", social:"Social Media / Phone"
+    }[newRecovery.substance];
+    if (!label) return;
+    const icon = { alcohol:"🍺", nicotine:"🚭", drugs:"💊", gambling:"🎰", social:"📱", custom:"💪" }[newRecovery.substance] || "💪";
+    const { data } = await supabase.from("recovery_trackers")
+      .insert([{ user_id: user.id, label, icon, start_date: newRecovery.start_date, best_streak: 0 }])
+      .select().single();
+    if (data) setRecoveryTrackers(p => [...p, data]);
+    setShowAddRecovery(false);
+    setNewRecovery({ substance:"alcohol", custom:"", start_date: new Date().toISOString().split("T")[0] });
+  };
+
+  const resetRecovery = async (tracker) => {
+    const currentStreak = Math.floor((new Date() - new Date(tracker.start_date)) / (1000*60*60*24));
+    const newBest = Math.max(tracker.best_streak || 0, currentStreak);
+    const today = new Date().toISOString().split("T")[0];
+    const { data } = await supabase.from("recovery_trackers")
+      .update({ start_date: today, best_streak: newBest })
+      .eq("id", tracker.id).select().single();
+    if (data) setRecoveryTrackers(p => p.map(t => t.id === tracker.id ? data : t));
+  };
+
+  const deleteRecovery = async (id) => {
+    await supabase.from("recovery_trackers").delete().eq("id", id);
+    setRecoveryTrackers(p => p.filter(t => t.id !== id));
+  };
+
   const addGoal = async () => {
     if (!newGoal.title.trim() || !newGoal.target_value) return;
     const payload = {
@@ -1413,6 +1451,100 @@ export default function LifeSync({ user, onSignOut, isDemo = false }) { // {
                 ))}
               </div>
             </div>
+            {/* ── RECOVERY STREAKS ── */}
+            <div style={C.card}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
+                <div>
+                  <div style={C.cTitle}>🛡️ Recovery Streaks</div>
+                  <div style={{fontSize:12,color:"#64748b",marginTop:2}}>Track what you're working to quit. Every day counts.</div>
+                </div>
+                <button style={{...C.btn("#6366f1"),fontSize:12,padding:"7px 14px"}} onClick={()=>setShowAddRecovery(true)}>+ Add</button>
+              </div>
+
+              {recoveryTrackers.length === 0 ? (
+                <div style={{textAlign:"center",padding:"28px 0"}}>
+                  <div style={{fontSize:36,marginBottom:10}}>🛡️</div>
+                  <div style={{fontSize:14,fontWeight:700,marginBottom:6}}>Start a Recovery Streak</div>
+                  <div style={{fontSize:12,color:"#475569",marginBottom:16}}>Track sobriety, quitting smoking, reducing screen time, or any habit you're fighting. No judgment — just progress.</div>
+                  <button style={C.btn("#6366f1")} onClick={()=>setShowAddRecovery(true)}>+ Start Tracking</button>
+                </div>
+              ) : (
+                <div style={{display:"flex",flexDirection:"column",gap:12,marginTop:12}}>
+                  {recoveryTrackers.map(tracker => {
+                    const days = Math.floor((new Date() - new Date(tracker.start_date)) / (1000*60*60*24));
+                    const best = tracker.best_streak || 0;
+                    const milestoneColor = days >= 365 ? "#facc15" : days >= 90 ? "#4ade80" : days >= 30 ? "#60a5fa" : days >= 7 ? "#a78bfa" : "#94a3b8";
+                    const nextMilestone = days < 1 ? 1 : days < 3 ? 3 : days < 7 ? 7 : days < 14 ? 14 : days < 30 ? 30 : days < 60 ? 60 : days < 90 ? 90 : days < 180 ? 180 : days < 365 ? 365 : null;
+                    const pct = nextMilestone ? Math.round((days / nextMilestone) * 100) : 100;
+                    return (
+                      <div key={tracker.id} style={{background:"#080f1e",border:`1px solid ${milestoneColor}33`,borderRadius:14,padding:"16px 18px",borderLeft:`3px solid ${milestoneColor}`}}>
+                        <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:12}}>
+                          <div style={{display:"flex",alignItems:"center",gap:12}}>
+                            <span style={{fontSize:28}}>{tracker.icon}</span>
+                            <div>
+                              <div style={{fontSize:15,fontWeight:800}}>{tracker.label}</div>
+                              <div style={{fontSize:11,color:"#475569"}}>Best: {best} days</div>
+                            </div>
+                          </div>
+                          <div style={{textAlign:"right"}}>
+                            <div style={{fontSize:32,fontWeight:900,color:milestoneColor,lineHeight:1}}>{days}</div>
+                            <div style={{fontSize:10,color:"#475569",fontWeight:700,letterSpacing:0.5}}>DAYS CLEAN</div>
+                          </div>
+                        </div>
+
+                        {/* Milestone badges */}
+                        <div style={{display:"flex",gap:6,marginBottom:10,flexWrap:"wrap"}}>
+                          {[1,3,7,14,30,90,180,365].map(m => {
+                            const achieved = days >= m;
+                            const lbl = m===365?"1 Year":m===180?"6 Mo":m===90?"90 Days":m===30?"30 Days":m===14?"2 Weeks":m===7?"1 Week":m===3?"3 Days":"1 Day";
+                            return (
+                              <div key={m} style={{fontSize:10,fontWeight:700,padding:"3px 8px",borderRadius:99,
+                                background: achieved ? `${milestoneColor}22` : "#0f2240",
+                                color: achieved ? milestoneColor : "#334155",
+                                border:`1px solid ${achieved ? milestoneColor+"55" : "#1a3356"}`}}>
+                                {achieved ? "✓ " : ""}{lbl}
+                              </div>
+                            );
+                          })}
+                        </div>
+
+                        {/* Progress to next milestone */}
+                        {nextMilestone && (
+                          <div style={{marginBottom:12}}>
+                            <div style={{display:"flex",justifyContent:"space-between",fontSize:11,color:"#475569",marginBottom:4}}>
+                              <span>Next: {nextMilestone===365?"1 year":nextMilestone>=30?`${nextMilestone} days`:nextMilestone===14?"2 weeks":nextMilestone===7?"1 week":`${nextMilestone} days`}</span>
+                              <span style={{color:milestoneColor,fontWeight:700}}>{pct}%</span>
+                            </div>
+                            <Bar value={days} max={nextMilestone} color={milestoneColor} h={6}/>
+                          </div>
+                        )}
+
+                        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                          <div style={{fontSize:11,color:"#334155"}}>
+                            Since {new Date(tracker.start_date).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})}
+                          </div>
+                          <div style={{display:"flex",gap:8}}>
+                            <button onClick={()=>resetRecovery(tracker)}
+                              style={{fontSize:11,fontWeight:700,padding:"5px 12px",borderRadius:8,background:"rgba(248,113,113,0.1)",border:"1px solid rgba(248,113,113,0.3)",color:"#f87171",cursor:"pointer"}}>
+                              Reset
+                            </button>
+                            <button onClick={()=>deleteRecovery(tracker.id)}
+                              style={{fontSize:11,padding:"5px 10px",borderRadius:8,background:"transparent",border:"1px solid #1a3356",color:"#475569",cursor:"pointer"}}>
+                              ×
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              <div style={{marginTop:16,padding:"10px 14px",background:"rgba(96,165,250,0.06)",border:"1px solid rgba(96,165,250,0.15)",borderRadius:10,fontSize:11,color:"#475569",lineHeight:1.6}}>
+                💙 Need support? <strong style={{color:"#60a5fa"}}>SAMHSA Helpline: 1-800-662-4357</strong> — free &amp; confidential, 24/7.
+              </div>
+            </div>
+
           </div>
         )}
 
@@ -2906,6 +3038,57 @@ export default function LifeSync({ user, onSignOut, isDemo = false }) { // {
           </div>
         );
       })()}
+
+      {/* ── ADD RECOVERY MODAL ── */}
+      {showAddRecovery&&(
+        <div style={C.overlay} onClick={()=>setShowAddRecovery(false)}>
+          <div style={{...C.mbox,width:440}} onClick={e=>e.stopPropagation()}>
+            <div style={{fontSize:18,fontWeight:800,marginBottom:4}}>🛡️ Start a Recovery Streak</div>
+            <div style={{fontSize:12,color:"#64748b",marginBottom:20}}>Every day clean is a win. No judgment — just progress.</div>
+
+            <div style={{fontSize:12,color:"#818cf8",fontWeight:700,marginBottom:10,textTransform:"uppercase",letterSpacing:1}}>What are you tracking?</div>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8,marginBottom:16}}>
+              {[
+                {id:"alcohol",  icon:"🍺", label:"Alcohol"},
+                {id:"nicotine", icon:"🚭", label:"Nicotine"},
+                {id:"drugs",    icon:"💊", label:"Drugs"},
+                {id:"gambling", icon:"🎰", label:"Gambling"},
+                {id:"social",   icon:"📱", label:"Social Media"},
+                {id:"custom",   icon:"💪", label:"Custom"},
+              ].map(s=>(
+                <button key={s.id} onClick={()=>setNewRecovery(p=>({...p,substance:s.id}))}
+                  style={{padding:"12px 8px",borderRadius:12,border:`2px solid ${newRecovery.substance===s.id?"#6366f1":"#1a3356"}`,
+                    background:newRecovery.substance===s.id?"rgba(99,102,241,0.15)":"#080f1e",
+                    cursor:"pointer",textAlign:"center",transition:"all 0.2s"}}>
+                  <div style={{fontSize:24,marginBottom:4}}>{s.icon}</div>
+                  <div style={{fontSize:11,fontWeight:700,color:newRecovery.substance===s.id?"#818cf8":"#64748b"}}>{s.label}</div>
+                </button>
+              ))}
+            </div>
+
+            {newRecovery.substance==="custom"&&(
+              <div style={{marginBottom:16}}>
+                <div style={{fontSize:12,color:"#64748b",marginBottom:6}}>What are you quitting?</div>
+                <input value={newRecovery.custom} onChange={e=>setNewRecovery(p=>({...p,custom:e.target.value}))}
+                  placeholder="e.g. Caffeine, Junk food..." style={{...C.inp,width:"100%"}}/>
+              </div>
+            )}
+
+            <div style={{marginBottom:20}}>
+              <div style={{fontSize:12,color:"#64748b",marginBottom:6}}>Start date — when did you last use?</div>
+              <input type="date" value={newRecovery.start_date}
+                onChange={e=>setNewRecovery(p=>({...p,start_date:e.target.value}))}
+                style={{...C.inp,width:"100%"}}/>
+              <div style={{fontSize:11,color:"#475569",marginTop:4}}>Set to today if starting fresh, or back-date it if you're already clean.</div>
+            </div>
+
+            <div style={{display:"flex",gap:10}}>
+              <button style={{...C.btn("#6366f1"),flex:1}} onClick={addRecovery}>Start Tracking →</button>
+              <button style={{...C.ghost,padding:"9px 18px"}} onClick={()=>setShowAddRecovery(false)}>Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── ADD HABIT MODAL ── */}
       {showAdd&&(
