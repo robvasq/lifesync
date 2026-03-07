@@ -2511,7 +2511,7 @@ export default function LifeSync({ user, onSignOut, isDemo = false }) { // {
                   {(bs.goal_type==="fat_loss"||bs.goal_type==="muscle_gain"||bs.goal_type==="general_fitness") && tdee && (
                     <div style={{marginTop:14}}>
                       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10,marginBottom:10}}>
-                        {bs.goal_type==="muscle_gain" ? [
+                        {(bs.goal_type==="muscle_gain" ? [
                           ["Maintenance", tdee,      "#64748b", "maintain weight"],
                           ["Lean Bulk",   tdee+200,  "#818cf8", "~0.25 lb/week gain"],
                           ["Bulk",        tdee+400,  "#6366f1", "~0.5 lb/week gain"],
