@@ -1371,7 +1371,7 @@ export default function LifeSync({ user, onSignOut, isDemo = false }) {
     setCheckInStep(4);
     setWellnessAiLoading(true);
     try {
-      const res = await fetch("https://api.anthropic.com/v1/messages", {
+      const res = await fetch("/api/claude", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           model: "claude-sonnet-4-20250514", max_tokens: 500,
@@ -1708,7 +1708,7 @@ GOALS: Active: ${activeGoals.length}. Nearing deadline: ${nearDeadline.length>0?
     setBriefingLoading(true);
     setBriefingExpanded(true);
     try {
-      const res = await fetch("https://api.anthropic.com/v1/messages",{
+      const res = await fetch("/api/claude",{
         method:"POST", headers:{"Content-Type":"application/json"},
         body: JSON.stringify({
           model:"claude-sonnet-4-20250514", max_tokens:600,
@@ -1789,7 +1789,7 @@ Under 200 words. Warm, direct, human. Use their actual numbers. Never generic.`,
     setMsgs(next); setAiInput(""); setAiLoading(true);
     const hsum = habits.map(h=>`${tmpl(h.id)?.label}: ${h.streak} streak, ${h.weekCount}/${tmpl(h.id)?.target} this period`).join("; ");
     try {
-      const res = await fetch("https://api.anthropic.com/v1/messages",{
+      const res = await fetch("/api/claude",{
         method:"POST",headers:{"Content-Type":"application/json"},
         body:JSON.stringify({
           model:"claude-sonnet-4-20250514",max_tokens:1000,
