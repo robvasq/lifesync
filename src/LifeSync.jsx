@@ -1232,10 +1232,11 @@ export default function LifeSync({ user, onSignOut, isDemo = false }) {
   const hdata = id => habits.find(h => h.id === id);
 
   const logHabit = (id, count) => {
+    const today = new Date().toISOString().split('T')[0];
+    const habit = habits.find(h => h.id === id);
+    if (habit?.lastLoggedDate === today) return;
     setHabits(prev => prev.map(h => {
       if (h.id !== id) return h;
-      const todayStr = new Date().toISOString().split('T')[0];
-      if (h.lastLoggedDate === todayStr) return h; // already logged today — prevent streak increment
       const t = tmpl(id);
       const newCount = Math.min(h.weekCount + count, t.target * 2);
       const weekDone = newCount >= t.target;
@@ -1243,7 +1244,7 @@ export default function LifeSync({ user, onSignOut, isDemo = false }) {
       const newStreak = h.streak + 1;
       const newHistory = [...h.history, 1].slice(-28);
       saveHabit(id, newStreak, newCount, newHistory, { label:h.label, icon:h.icon, target:h.target, unit:h.unit });
-      return { ...h, weekCount: newCount, streak: newStreak, history: newHistory, lastLoggedDate: todayStr };
+      return { ...h, weekCount: newCount, streak: newStreak, history: newHistory, lastLoggedDate: today };
     }));
     setJustLogged(id);
     setTimeout(() => setJustLogged(null), 2200);
