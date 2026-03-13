@@ -902,6 +902,7 @@ export default function LifeSync({ user, onSignOut, isDemo = false }) {
       .maybeSingle();
     const isNewWeek = !existing?.last_week_reset || new Date(existing.last_week_reset) < startOfWeek;
     const payload = {
+      completed: true,
       streak,
       week_count: weekCount,
       history: historyJson,
@@ -2381,9 +2382,8 @@ Under 200 words. Warm, direct, human. Use their actual numbers. Never generic.`,
                     <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
                       <HeatMap history={h.history}/>
 {(()=>{
-                        const isDaily = t.unit === "days/week";
                         const todayStr = new Date().toISOString().split("T")[0];
-                        const loggedToday = isDaily && h.lastLoggedDate === todayStr;
+                        const loggedToday = h.lastLoggedDate === todayStr;
                         if (loggedToday) return (
                           <div style={{background:"rgba(74,222,128,0.08)",border:"1px solid rgba(74,222,128,0.2)",borderRadius:10,padding:"7px 14px",fontSize:12,color:"#3a7d5c",fontWeight:700,display:"flex",alignItems:"center",gap:6}}>
                             ✓ Done for Today
