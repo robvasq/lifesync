@@ -1820,17 +1820,22 @@ Under 200 words. Warm, direct, human. Use their actual numbers. Never generic.`,
   };
 
   // ── COACH HELPERS ─────────────────────────────────────────────────────────
-  const buildCoachUserData = () => ({
-    profile: { username, goal_type: bodyStats?.goal_type, age_range: bodyStats?.age },
-    habits: habits.map(h => { const t = tmpl(h.id); return { habit_name: t?.label || h.id, streak: h.streak, completed: h.weekCount >= (t?.target || 5) }; }),
-    moods: moodHistory.filter(m => m.score !== null).slice(-14).map(m => ({ mood: m.score >= 8 ? "great" : m.score >= 6 ? "good" : m.score >= 4 ? "okay" : "low", score: m.score, date: m.date })),
-    finances: bills.slice(0, 20).map(b => ({ amount: b.amount, category: b.name })),
-    bodyStats: bodyStats?.current_weight ? bodyStats : null,
-    weightLog: weightLog.slice(-7),
-    recovery: supplements.map(s => ({ sleep_hours: null, name: s.name, streak: s.streak })),
-  });
+  const buildCoachUserData = () => {
+    const todayStr = new Date().toISOString().split("T")[0];
+    return {
+      profile: { username, goal_type: bodyStats?.goal_type, age_range: bodyStats?.age, lifeScore },
+      habits: habits.map(h => { const t = tmpl(h.id); return { id: h.id, label: t?.label || h.id, streak: h.streak, weekCount: h.weekCount, target: t?.target || 5, loggedToday: h.lastLoggedDate === todayStr }; }),
+      goals: goals.filter(g => !g.completed).map(g => ({ title: g.title, category: g.category, current_value: g.current_value, target_value: g.target_value, unit: g.unit, deadline: g.deadline })),
+      finances: { monthlyIncome, monthlyExpenses, cashflow: (monthlyIncome || 0) - (monthlyExpenses || 0), savings, debts: debts.map(d => ({ name: d.name, balance: d.balance, rate: d.apr })) },
+      supplements: supplements.map(s => ({ name: s.name, streak: s.streak, takenToday: s.takenToday })),
+      moods: moodHistory.filter(m => m.score !== null).slice(-14).map(m => ({ score: m.score, date: m.date })),
+      bodyStats: bodyStats?.current_weight ? { current_weight: bodyStats.current_weight, goal_weight: bodyStats.goal_weight, height_in: bodyStats.height_in, goal_type: bodyStats.goal_type } : null,
+      weightLog: weightLog.slice(-7),
+      scoreHistory: [lifeScore],
+    };
+  };
 
-  const fetchCoachMessage = async (mode, userMsg = "", history = []) => {
+  const fetchCoachMessage = async (mode, userMsg = "", history = [], cacheKey = null) => {
     setCoachLoading(true);
     try {
       const res = await fetch("/api/coach", {
@@ -1841,6 +1846,7 @@ Under 200 words. Warm, direct, human. Use their actual numbers. Never generic.`,
       const data = await res.json();
       if (data.content) {
         setCoachMsgs(prev => [...prev, { text: data.content, isCoach: true, role: "assistant" }]);
+        if (cacheKey) { try { localStorage.setItem(cacheKey, data.content); } catch {} }
       }
     } catch {
       setCoachMsgs(prev => [...prev, { text: "Having trouble connecting. Check your connection and try again.", isCoach: true }]);
@@ -1901,19 +1907,61 @@ Under 200 words. Warm, direct, human. Use their actual numbers. Never generic.`,
     }
   }, [tab]);
 
-  const COACH_SUGGESTIONS = [
-    "What pattern are you seeing?",
-    "Where should I focus today?",
-    "How's my progress overall?",
-    "What's hurting my score?",
-  ];
+  const coachSuggestions = (() => {
+    const todayStr = new Date().toISOString().split("T")[0];
+    const suggestions = [];
+    const topStreak = [...habits].sort((a, b) => b.streak - a.streak)[0];
+    if (topStreak && topStreak.streak >= 3) {
+      const t = tmpl(topStreak.id);
+      suggestions.push(`How do I protect my ${t?.label || topStreak.id} streak?`);
+    }
+    const atRisk = habits.find(h => h.streak > 2 && h.lastLoggedDate !== todayStr);
+    if (atRisk) {
+      const t = tmpl(atRisk.id);
+      suggestions.push(`Help me keep my ${t?.label || atRisk.id} streak alive`);
+    }
+    const cashflow = (monthlyIncome || 0) - (monthlyExpenses || 0);
+    if (cashflow < 0) suggestions.push("My expenses exceed income — where do I start cutting?");
+    else if (savings > 0) suggestions.push(`I have $${savings.toLocaleString()} saved — best move right now?`);
+    const activeGoal = goals.find(g => !g.completed);
+    if (activeGoal) suggestions.push(`Am I on track with my ${activeGoal.title} goal?`);
+    const defaults = ["What pattern are you seeing?", "Where should I focus today?", "How's my progress overall?", "What's hurting my score?"];
+    defaults.forEach(d => { if (suggestions.length < 4) suggestions.push(d); });
+    return suggestions.slice(0, 4);
+  })();
 
-  const COACH_TAB_PROMPTS = [
-    { label: "Patterns", prompts: ["What's the strongest pattern in my data?", "When am I most on track?", "What's secretly hurting my progress?"] },
-    { label: "Focus", prompts: ["What's the #1 thing to fix this week?", "Which habit has the biggest ripple effect?", "Where am I close to a breakthrough?"] },
-    { label: "Finance", prompts: ["How does my mood affect my spending?", "Am I on track with my financial goals?", "Where am I leaking money?"] },
-    { label: "Health", prompts: ["How is my sleep affecting everything?", "What does my weight trend tell you?", "Am I recovering well?"] },
-  ];
+  const coachTabPrompts = (() => {
+    const todayStr = new Date().toISOString().split("T")[0];
+    const topHabit = [...habits].sort((a, b) => b.streak - a.streak)[0];
+    const topLabel = topHabit ? (tmpl(topHabit.id)?.label || topHabit.id) : null;
+    const atRisk = habits.find(h => h.streak > 0 && h.lastLoggedDate !== todayStr);
+    const atRiskLabel = atRisk ? (tmpl(atRisk.id)?.label || atRisk.id) : null;
+    const cashflow = (monthlyIncome || 0) - (monthlyExpenses || 0);
+    const topDebt = [...debts].sort((a, b) => (b.balance || 0) - (a.balance || 0))[0];
+    const weightGap = bodyStats?.current_weight && bodyStats?.goal_weight ? Math.abs(bodyStats.current_weight - bodyStats.goal_weight) : null;
+    return [
+      { label: "Patterns", prompts: [
+        "What's the strongest pattern in my data?",
+        topLabel && topHabit.streak >= 5 ? `My ${topLabel} streak is ${topHabit.streak} days — what does that say about me?` : "When am I most on track?",
+        "What's secretly hurting my progress?",
+      ]},
+      { label: "Focus", prompts: [
+        "What's the #1 thing to fix this week?",
+        atRiskLabel ? `Help me keep my ${atRiskLabel} streak going today` : "Which habit has the biggest ripple effect?",
+        "Where am I close to a breakthrough?",
+      ]},
+      { label: "Finance", prompts: [
+        cashflow < 0 ? `I'm spending $${Math.abs(cashflow).toLocaleString()} more than I earn — where do I cut first?` : `How can I make the most of my $${cashflow.toLocaleString()}/mo cashflow?`,
+        topDebt ? `Best strategy for my ${topDebt.name} debt ($${(topDebt.balance || 0).toLocaleString()})` : "Am I on track with my financial goals?",
+        "How does my mood affect my spending?",
+      ]},
+      { label: "Health", prompts: [
+        weightGap !== null ? `I'm ${weightGap} lbs from my goal — realistic timeline?` : "What health habit should I add next?",
+        supplements.length > 0 ? `Are my supplements actually making a difference?` : "How is my sleep affecting everything?",
+        "Am I recovering well?",
+      ]},
+    ];
+  })();
   const [coachTabCategory, setCoachTabCategory] = useState(0);
 
   const scoreLabel = lifeScore>=80?"Excellent":lifeScore>=65?"Good":lifeScore>=50?"Fair":lifeScore>=35?"Needs Work":"Critical";
@@ -1964,10 +2012,17 @@ Under 200 words. Warm, direct, human. Use their actual numbers. Never generic.`,
       return next;
     });
   };
-  // Load coach greeting when coach tab first opened
+  // Load morning briefing when coach tab first opened — cached once per day
   useEffect(() => {
     if (tab === "coach" && coachMsgs.length === 0 && !coachLoading) {
-      fetchCoachMessage("open_greeting");
+      const todayStr = new Date().toISOString().split("T")[0];
+      const cacheKey = `ls_coach_morning_${todayStr}`;
+      const cached = localStorage.getItem(cacheKey);
+      if (cached) {
+        setCoachMsgs([{ text: cached, isCoach: true, role: "assistant" }]);
+      } else {
+        fetchCoachMessage("morning_briefing", "", [], cacheKey);
+      }
     }
   }, [tab]);
 
@@ -4399,7 +4454,7 @@ Under 200 words. Warm, direct, human. Use their actual numbers. Never generic.`,
             {/* Prompt suggestions */}
             <div style={{flexShrink:0,marginBottom:12}}>
               <div style={{display:"flex",gap:8,marginBottom:10,overflowX:"auto",paddingBottom:4}}>
-                {COACH_TAB_PROMPTS.map((cat,i)=>(
+                {coachTabPrompts.map((cat,i)=>(
                   <button key={cat.label} onClick={()=>setCoachTabCategory(i)}
                     style={{whiteSpace:"nowrap",padding:"5px 14px",borderRadius:20,border:"1.5px solid",borderColor:coachTabCategory===i?"#d4860a":"rgba(17,16,16,0.12)",background:coachTabCategory===i?"rgba(212,134,10,0.08)":"transparent",color:coachTabCategory===i?"#d4860a":"#9a9590",fontSize:12,cursor:"pointer",fontWeight:coachTabCategory===i?600:400,transition:"all 0.15s",flexShrink:0}}>
                     {cat.label}
@@ -4407,7 +4462,7 @@ Under 200 words. Warm, direct, human. Use their actual numbers. Never generic.`,
                 ))}
               </div>
               <div style={{display:"flex",flexDirection:"column",gap:6}}>
-                {COACH_TAB_PROMPTS[coachTabCategory].prompts.map(p=>(
+                {coachTabPrompts[coachTabCategory].prompts.map(p=>(
                   <button key={p} onClick={async()=>{
                     if(coachLoading)return;
                     setCoachMsgs(prev=>[...prev,{text:p,isCoach:false,role:"user"}]);
@@ -5456,7 +5511,7 @@ Under 200 words. Warm, direct, human. Use their actual numbers. Never generic.`,
             {/* Quick suggestions */}
             {coachMsgs.length<=2&&(
               <div style={{display:"flex",gap:8,padding:"0 20px 12px",overflowX:"auto",flexShrink:0}}>
-                {COACH_SUGGESTIONS.map(s=>(
+                {coachSuggestions.map(s=>(
                   <button key={s} onClick={async()=>{
                     setCoachMsgs(prev=>[...prev,{text:s,isCoach:false,role:"user"}]);
                     const history=coachMsgs.filter(m=>m.role).map(m=>({role:m.role,content:m.text}));
