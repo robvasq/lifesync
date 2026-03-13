@@ -688,6 +688,7 @@ export default function LifeSync({ user, onSignOut, isDemo = false }) {
         const startOfWeek = new Date(today);
         startOfWeek.setDate(today.getDate() - (dow === 0 ? 6 : dow - 1));
         startOfWeek.setHours(0,0,0,0);
+        const todayStr = new Date().toISOString().split('T')[0];
         const mapped = habitsData.map(h => {
           const lastReset = h.last_week_reset ? new Date(h.last_week_reset) : null;
           const isNewWeek = !lastReset || lastReset < startOfWeek;
@@ -701,6 +702,7 @@ export default function LifeSync({ user, onSignOut, isDemo = false }) {
             // Restore custom habit fields if stored
             ...(h.label ? { label: h.label, icon: h.icon, target: h.target, unit: h.unit } : {}),
             lastLoggedDate: h.last_completed || null,
+            completed: h.last_completed === todayStr,
           };
         });
         setHabits(mapped);
@@ -1232,6 +1234,8 @@ export default function LifeSync({ user, onSignOut, isDemo = false }) {
   const logHabit = (id, count) => {
     setHabits(prev => prev.map(h => {
       if (h.id !== id) return h;
+      const todayStr = new Date().toISOString().split('T')[0];
+      if (h.lastLoggedDate === todayStr) return h; // already logged today — prevent streak increment
       const t = tmpl(id);
       const newCount = Math.min(h.weekCount + count, t.target * 2);
       const weekDone = newCount >= t.target;
@@ -1239,7 +1243,6 @@ export default function LifeSync({ user, onSignOut, isDemo = false }) {
       const newStreak = h.streak + 1;
       const newHistory = [...h.history, 1].slice(-28);
       saveHabit(id, newStreak, newCount, newHistory, { label:h.label, icon:h.icon, target:h.target, unit:h.unit });
-      const todayStr = new Date().toISOString().split('T')[0];
       return { ...h, weekCount: newCount, streak: newStreak, history: newHistory, lastLoggedDate: todayStr };
     }));
     setJustLogged(id);
